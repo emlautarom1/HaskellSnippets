@@ -115,3 +115,21 @@ intersection s1 s2 = MkSet $ Insert (\x -> x `member` s1 && x `member` s2) empty
 -- | See 'difference'
 (\\) :: Set a -> Set a -> Set a
 (\\) = difference
+
+-- | Examples
+-- __Simple examples__
+-- >>> member 5 $ empty
+-- False
+
+-- >>> member 5 $ insert 5 $ empty
+-- True
+
+-- >>> member 5 $ delete 5 $ insert 5 $ empty
+-- False
+
+-- __Examples with properties__
+-- >>> member 10 $ fromPredicate (\x -> x `mod` 5 == 0)
+-- True
+
+-- >>> member 10 $ deleteAll (\x -> x `mod` 5 == 0) $ fromPredicate even
+-- False
