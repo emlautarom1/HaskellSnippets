@@ -73,7 +73,7 @@ notMember a s = not $ member a s
 -- Insertion of an element already on the set is a no-op.
 insert :: Eq a => a -> Set a -> Set a
 insert a s
-  | notMember a s = WithOperation s (Insert (== a))
+  | notMember a s = s `WithOperation` Insert (== a)
   | otherwise = s
 
 -- | Insert all the elements that satisfy a @Predicate@ in a set.
