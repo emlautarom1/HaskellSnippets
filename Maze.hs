@@ -34,8 +34,8 @@ adjacentPositions (row, col) =
     (row + 1, col) -- Down
   ]
 
-solveMaze :: Maze -> [Position]
-solveMaze m = go [[start]] []
+solveMaze :: Maze -> [Char]
+solveMaze m = asDirections $ go [[start]] []
   where
     start = findPositionOf 'S' m
     end = findPositionOf 'E' m
