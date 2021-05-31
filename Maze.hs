@@ -2,7 +2,7 @@
 
 module Maze where
 
-import Data.List
+import Data.List (elemIndex)
 
 type Position = (Int, Int)
 
