@@ -2,48 +2,6 @@
 
 module Warehouse where
 
-{-
-1. Identifiers should have reasonable names hinting and their purpose or function.
-2. Code should be reasonably commented:
-  i. Module files should have a brief outline summarising their contents.
-  ii. Any non-trivial function should have its purpose explained and arguments listed, including their semantics.
-  iii. you can use white space (tabulators, empty lines, etc.) that should be conducive to reading the code.
-
-3. All codes in the solutions must be your own and not from libraries. Unless otherwise specified, you can use the Full standard prelude, but not any external modules, libraries, packages, or similar. Unless otherwise. mentioned, all modules imported in my code must be your own.
-
-4. You can develop the code in whatever environment you like. Therefore, it is a significant requirement that your code executes correctly on a clean WinGHCi
-
-5. Some parts of the criteria stipulate strict code structure (module elements, function arguments, class members, etc.) and identifier values (e.g., names for files, folders, functions, classes, class members, etc.). Meeting these requirements to the letterforms is a significant part of the completion of the app/code.
-
-This is the Warehousing program brief:
-
-Write a text-based transaction program for recording stock levels in a warehouse. A transaction is either an import, and export, or wastage (e.g., when a stock falls off a shelf and breaks) of items, and consists of the item name, item type, number of items, and, if applicable, the Importer/exporter name. Item type can be freely chosen by whoever uses the application.
-
-The program should have the following features:
-- Users will record ingoing and outgoing deliveries (imports and exports) as well as wastage.
-- Users will further be able to list all transactions and all transaction data, optionally filtered by transaction-type (import, export, wastage) or item type, and/or sorted by item numbers, or importer/exporter name.
-- Users will also be able to search transactions by importer/exporter name, item type, or item name.
-- Last but not least, users will be able to query the total current stock.
-
-The program should have explanatory text as necessary and handle input errors etc. gracefully. Implement application features in a command processing style. For example, incoming and outgoing deliveries might be recorded via commands such as:
-
-`import 100 "iPhone" "electronics" "Apple, Inc."`
-for recording the incoming delivery of 100 iPhones from Apple,
-
-`withdraw 50 "iPhone" "Supersale Electronics Ltd."`
-for logging the outgoing delivery of 50 iPhones to Supersale Electronics Ltd.,
-
-search "iPhone"
-for listing all transactions of iPhones,
-
-list
-to see all transactions, or
-
-`list filter "wastage+electronics"`
-for listing all wastage of electronics items.
-
--}
-
 import Data.Char (toUpper)
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
@@ -51,98 +9,143 @@ import System.Exit (exitSuccess)
 import System.IO (hFlush, stdout)
 import Text.Read (readMaybe)
 
+-- | An Item in the Warehouse
 data Item = Item
-  { itemName :: String,
+  { -- | The name of the Item
+    itemName :: String,
+    -- | The type of the Item
     itemType :: String
   }
   deriving (Show, Eq, Ord)
 
+-- | A Transaction in the system.
 data Transaction
-  = ImportTransaction String Int Item
-  | ExportTransaction String Int Item
-  | WastageTransaction Int Item
+  = -- | A Transaction is either an 'import' with some 'importer', a number of 'item's and an 'item'
+    ImportTransaction String Int Item
+  | -- | Or a 'withdraw' with some 'exporter', a number of 'item's and an 'item'
+    WithdrawTransaction String Int Item
+  | -- | Or a 'wastage', with a number of 'item's and an 'item'
+    WastageTransaction Int Item
   deriving (Show, Eq)
 
 transactionItem :: Transaction -> Item
 transactionItem (ImportTransaction _ _ item) = item
-transactionItem (ExportTransaction _ _ item) = item
+transactionItem (WithdrawTransaction _ _ item) = item
 transactionItem (WastageTransaction _ item) = item
 
+-- | The Database of the system.
 newtype Database = Database [Transaction]
   deriving (Show)
 
+-- | A Command in the system, allowing the user to ask for some behaviour
 data Command
-  = ImportCommand Int String String String
-  | ExportCommand Int String String String
-  | WastageCommand Int String String
-  | ShowStockCommand
-  | SearchCommand String
-  | ListCommand (Transaction -> Bool)
-  | HelpCommand
-  | ExitCommand
+  = -- | Register an 'import' with the appropiate fields (importer, number of items and an item - with a name and a type)
+    ImportCommand Int String String String
+  | -- | Register a 'withdraw' with the appropiate fields (...)
+    WithdrawCommand Int String String String
+  | -- | Register a 'wastage' with the appropiate fields (...)
+    WastageCommand Int String String
+  | -- | Query the total stock
+    ShowStockCommand
+  | -- | Search for all transactions with some 'item' (by name)
+    SearchCommand String
+  | -- | List all transactions with some optional filter
+    ListCommand (Maybe (Transaction -> Bool))
+  | -- | Ask for help
+    HelpCommand
+  | -- | Exit the application
+    ExitCommand
 
+-- | An empty Database with no 'Transaction's recorded.
 emptyDatabase :: Database
 emptyDatabase = Database []
 
+-- | Record a 'Transaction' in a 'Database'
 recordTransaction :: Transaction -> Database -> Database
-recordTransaction t (Database db) = Database $ t : db
+recordTransaction t (Database ts) = Database (t : ts)
 
+-- | Get all 'Transaction's that match a given predicate
 queryTransactions :: (Transaction -> Bool) -> Database -> [Transaction]
-queryTransactions p (Database db) = filter p db
+queryTransactions predicate (Database ts) = filter predicate ts
 
+-- | Shows a list of transactions in a human redeable format
 prettyTransactions :: [Transaction] -> String
-prettyTransactions ts = unlines $ map pretty ts
+prettyTransactions ts = unlines $ map prettyfy ts
   where
-    pretty (ImportTransaction importer count item) = "[IMPORT] '" ++ itemName item ++ "' x " ++ show count ++ " - '" ++ itemType item ++ "' - '" ++ importer ++ "'"
-    pretty (ExportTransaction exporter count item) = "[EXPORT] '" ++ itemName item ++ "' x " ++ show count ++ " - '" ++ itemType item ++ "' - '" ++ exporter ++ "'"
-    pretty (WastageTransaction count item) = "[WASTAGE] '" ++ itemName item ++ "' x " ++ show count ++ " - '" ++ itemType item ++ "'"
+    prettyfy (ImportTransaction importer count item) = "[IMPORT] '" ++ itemName item ++ "' x " ++ show count ++ " - '" ++ itemType item ++ "' - '" ++ importer ++ "'"
+    prettyfy (WithdrawTransaction exporter count item) = "[WITHDRAW] '" ++ itemName item ++ "' x " ++ show count ++ " - '" ++ itemType item ++ "' - '" ++ exporter ++ "'"
+    prettyfy (WastageTransaction count item) = "[WASTAGE] '" ++ itemName item ++ "' x " ++ show count ++ " - '" ++ itemType item ++ "'"
 
-getStock :: Database -> Map Item Int
-getStock (Database db) = foldr mergeStock Map.empty db
+-- | The Stock is a Map of 'Item's to 'Int's
+type Stock = Map Item Int
+
+-- | Calculate the stock in the Warehouse.
+--
+-- The result is a Map containing Items as keys, and the number of those items as values.
+getStock :: Database -> Stock
+-- The idea is to traverse all transactions and build a Map, updating the stock of each item
+-- according to the transaction.
+-- For example, an 'import' will increase the ammount of items, where a 'withdraw' will decrease it.
+getStock (Database transactions) = foldr mergeStock Map.empty transactions
   where
     mergeStock (ImportTransaction _ count item) = Map.insertWith (+) item count
-    mergeStock (ExportTransaction _ count item) = Map.insertWith (+) item (negate count)
+    -- If an item is present, some operations, like 'withdraw' will decrease the ammount of items. If the item is not present, we want to store the ammount as a negative number, so we end up 'adding the negation' of the ammount
+    mergeStock (WithdrawTransaction _ count item) = Map.insertWith (+) item (negate count)
     mergeStock (WastageTransaction count item) = Map.insertWith (+) item (negate count)
 
-prettyStock :: Map Item Int -> String
+-- | Format a 'Stock' into a 'String'
+prettyStock :: Stock -> String
 prettyStock stock
-  | Map.null stock = "No stock.\n"
-  | otherwise = unlines $ map prettyLine (Map.toList stock)
+  | Map.null stock = "No stock.\n" -- An empty stock
+  | otherwise = unlines $ map prettyLine (Map.toList stock) -- At least one Item in stock
   where
     prettyLine (item, count) = prettyItem item ++ " -> " ++ show count
     prettyItem (Item name type') = "[" ++ type' ++ "] " ++ name
 
+-- | Parse a 'Command'.
+--
+-- Fails with 'Nothing' if the input string is not a valid 'Command'.
 parseCommand :: String -> Maybe Command
 parseCommand input = do
-  tokens <- tokenize input
+  tokens <- tokenize input -- We split the input into tokens
   case tokens of
     -- Import command
-    ["import", count, name, type', importer] -> do
-      count' <- readMaybe count
+    ["IMPORT", count, name, type', importer] -> do
+      count' <- readMaybe count -- Fail with 'Nothing' if 'count' is not an 'Int'
       return $ ImportCommand count' name type' importer
-    -- Export command
-    ["export", count, name, type', exporter] -> do
-      count' <- readMaybe count
-      return $ ExportCommand count' name type' exporter
+    -- Withdraw command
+    ["WITHDRAW", count, name, type', exporter] -> do
+      count' <- readMaybe count -- Idem 'Import'
+      return $ WithdrawCommand count' name type' exporter
     -- Wastage command
-    ["wastage", count, name, type'] -> do
-      count' <- readMaybe count
+    ["WASTAGE", count, name, type'] -> do
+      count' <- readMaybe count -- Idem 'Import'
       return $ WastageCommand count' name type'
     -- Search command
-    ["search", query] -> return $ SearchCommand query
+    ["SEARCH", query] -> return $ SearchCommand query
     -- List command
-    ["list"] -> return $ ListCommand (const True)
-    ["list", "filter", query] -> do
+    ["LIST"] -> return $ ListCommand Nothing -- No optional filter
+    ["LIST", "FILTER", query] -> do
       filter' <- parseFilterQuery query
-      return $ ListCommand filter'
+      return $ ListCommand (Just filter')
     -- Stock command
-    ["stock"] -> return ShowStockCommand
+    ["STOCK"] -> return ShowStockCommand
     -- Help command
-    ["help"] -> return HelpCommand
+    ["HELP"] -> return HelpCommand
     -- Exit command
-    ["exit"] -> return ExitCommand
-    _ -> Nothing
+    ["EXIT"] -> return ExitCommand
+    _ -> Nothing -- Any other input is an invalid command
 
+-- | Parse a 'ListCommand' optional filter, returning a predicate on a 'Transaction'
+--
+-- Fails with 'Nothing' if the filter query can't be parsed
+--
+-- Valid queries are as follows:
+-- "<operation-type>[+<item-type>]""
+--   where
+--    <operation-type> = "import" | "withdraw" | "wastage"
+--    <item-type>      = any String
+-- Values inside '[]' are optional
 parseFilterQuery :: String -> Maybe (Transaction -> Bool)
 parseFilterQuery query = do
   arg1 : arg2 <- pure $ splitOn '+' query
@@ -150,39 +153,51 @@ parseFilterQuery query = do
   itemTypeFilter <- parseItemTypeFilter arg2
   return $ \t -> transactionTypeFilter t && itemTypeFilter t
   where
-    parseTransactionTypeFilter "import" = return $ \t -> case t of ImportTransaction {} -> True; _ -> False
-    parseTransactionTypeFilter "export" = return $ \t -> case t of ExportTransaction {} -> True; _ -> False
-    parseTransactionTypeFilter "wastage" = return $ \t -> case t of WastageTransaction {} -> True; _ -> False
+    -- We create predicates that will suceed when the type of the transaction matches
+    -- For example, if we provide "import", we create a function that will return 'True' on Imports only
+    parseTransactionTypeFilter "IMPORT" =
+      return $ \t -> case t of ImportTransaction {} -> True; _ -> False
+    parseTransactionTypeFilter "WITHDRAW" =
+      return $ \t -> case t of WithdrawTransaction {} -> True; _ -> False
+    parseTransactionTypeFilter "WASTAGE" =
+      return $ \t -> case t of WastageTransaction {} -> True; _ -> False
     parseTransactionTypeFilter _ = Nothing
 
-    parseItemTypeFilter [] = return $ const True
-    parseItemTypeFilter [itemType'] = return $ \t -> itemType (transactionItem t) == itemType'
-    parseItemTypeFilter _ = Nothing
+    -- We try to parse the second argument as an optional 'item type' filter
+    parseItemTypeFilter [] = return $ const True -- Without a filter, we create a predicate that will always suceed, no matter the type of the item.
+    parseItemTypeFilter [itemType'] = return $ \t -> itemType (transactionItem t) == itemType' -- If we have a filter, we create a predicate that given a transaction will return True only if the type of the item involved matches the filter.
+    parseItemTypeFilter _ = Nothing -- All other formats are invalid, and we fail with 'Nothing'
 
+-- | Evaluate a 'Command', execute any side-effect required and return a new 'Database'
 evalCommand :: Database -> Command -> IO Database
 evalCommand db command = case command of
-  ImportCommand count name type' importer' -> do
-    let item = Item (map toUpper name) (map toUpper type')
-    let transaction = ImportTransaction (map toUpper importer') count item
+  ImportCommand count name type' importer -> do
+    let item = Item name type'
+    let transaction = ImportTransaction importer count item
+    -- We 'create' a new Database - we don't modify the previous one!
     let newDB = recordTransaction transaction db
     return newDB
-  ExportCommand count name type' exporter' -> do
-    let item = Item (map toUpper name) (map toUpper type')
-    let transaction = ExportTransaction (map toUpper exporter') count item
+  WithdrawCommand count name type' exporter -> do
+    let item = Item name type'
+    let transaction = WithdrawTransaction exporter count item
     let newDB = recordTransaction transaction db
     return newDB
   WastageCommand count name type' -> do
-    let item = Item (map toUpper name) (map toUpper type')
+    let item = Item name type'
     let transaction = WastageTransaction count item
     let newDB = recordTransaction transaction db
     return newDB
   SearchCommand query -> do
-    let query' = map toUpper query
-    let transactions = queryTransactions (\t -> itemName (transactionItem t) == query') db
+    -- Here we'll need to perform side-effects in order to display the results of the search
+    let transactions = queryTransactions (\t -> itemName (transactionItem t) == query) db
     putStr $ prettyTransactions transactions
+    -- We return the old Database since it was not modified
     return db
   ListCommand filter' -> do
-    let transactions = queryTransactions filter' db
+    let filter'' = case filter' of
+          Just p -> p -- If there's a filter, use it
+          Nothing -> const True -- Otherwise, use as filter a predicate that always returns 'True'
+    let transactions = queryTransactions filter'' db
     putStr $ prettyTransactions transactions
     return db
   ShowStockCommand -> do
@@ -190,11 +205,30 @@ evalCommand db command = case command of
     putStr $ prettyStock stock
     return db
   HelpCommand -> do
-    putStrLn helpMessage
+    putStr helpMessage
     return db
   ExitCommand -> do
-    putStrLn "Goodbye."
+    putStrLn "Goodbye!"
+    -- 'exitSuccess' will quit the application with 'status 0'
     exitSuccess
+
+main :: IO ()
+main = do
+  putStr startMessage
+  loop emptyDatabase
+  where
+    loop db = do
+      -- All inputs are converted to upper-case
+      input <- map toUpper <$> prompt "$> "
+      case parseCommand input of
+        Nothing -> do
+          putStrLn "[ERROR] Invalid command. See valid commands by typing 'help'"
+          loop db
+        Just command -> do
+          newDB <- evalCommand db command
+          loop newDB
+
+-- *** Info messages
 
 helpMessage :: String
 helpMessage =
@@ -202,8 +236,8 @@ helpMessage =
     [ "Available commands:",
       "  Record an import",
       "    $> import <count> <item-name> <item-type> <importer>",
-      "  Record an export",
-      "    $> export <count> <item-name> <item-type> <exporter>",
+      "  Record a withdraw",
+      "    $> withdraw <count> <item-name> <item-type> <exporter>",
       " Record a wastage",
       "    $> wastage <count> <item-name> <item-type>",
       "  Search all transactions with some item",
@@ -211,14 +245,14 @@ helpMessage =
       "  List transactions with an optional filter",
       "    $> list [filter <filter-query>]",
       "      where",
-      "    <filter-query> = <operation>+[<item-type>]",
+      "    <filter-query> = <operation>[+<item-type>]",
       "  Exit the application",
       "    $> exit",
       "Examples: ",
       "  $> import 100 \"iPhone\" \"electronics\" \"Apple, Inc.\"",
       "  for recording the incoming delivery of 100 iPhones from Apple",
       "",
-      "  $> export 50 \"iPhone\" \"Supersale Electronics Ltd.\"",
+      "  $> withdraw 50 \"iPhone\" \"Supersale Electronics Ltd.\"",
       "  for logging the outgoing delivery of 50 iPhones to Supersale Electronics Ltd.",
       "",
       "  $> search \"iPhone\"",
@@ -239,25 +273,7 @@ startMessage =
       ""
     ]
 
-main :: IO ()
-main = do
-  putStr startMessage
-  loop emptyDatabase
-  where
-    loop db = do
-      input <- prompt "$ "
-      case parseCommand input of
-        Nothing -> do
-          putStrLn "[ERROR] Invalid command"
-          loop db
-        Just command -> do
-          newDB <- evalCommand db command
-          loop newDB
-
 -- *** Utility functions
-
-space :: Int -> String -> String
-space num content = (replicate num ' ') ++ content
 
 -- Read a line from 'stdin' showing some prompt at the start of the line
 -- Deals with console buffering, preventing incorrect behaviour
@@ -267,12 +283,14 @@ prompt text = do
   hFlush stdout
   getLine
 
--- Split a string into tokens
--- Tokens are separated by at least 1 whitespace
--- If needed, whitespace can be 'escaped' by surrounding a token in double quotes
+-- | Split a string into tokens.
+--
+-- Tokens are separated by at least 1 whitespace.
+-- If needed, whitespace can be escaped by surrounding a token in double quotes (@"@)
+--
 -- Fails with 'Nothing' if a douuble quote is not matched
 --
--- NOTE: Currently, double quotes can't be escaped!
+-- __Note__: Currently, double quotes can't be escaped!
 --
 -- __Examples__
 -- >>> tokenize "hello world"
@@ -298,7 +316,8 @@ tokenize s = case dropWhile isSpace s of
     isSpace = (== ' ')
     isQuote = (== '\"')
 
--- Split a list on items that match a predicate
+-- | Split a list on items that match a predicate
+--
 -- __Examples__
 -- >>> split (== '+') "hello+world"
 -- ["hello","world"]
@@ -309,7 +328,8 @@ split p xs = case dropWhile p xs of
   [] -> []
   s' -> let (x, s'') = break p s' in x : split p s''
 
--- Utility for splitting on equality of particular item
--- Defined as: 'splitOn c == split (== c)'
+-- | Utility for splitting on equality of particular item
+--
+-- Defined as: @splitOn c == split (== c)@
 splitOn :: Eq a => a -> [a] -> [[a]]
 splitOn c = split (== c)
