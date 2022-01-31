@@ -62,8 +62,8 @@ empty = Empty
 member :: a -> Set a -> Bool
 member _ Empty = False
 member a (set `WithOperation` op) = case op of
-  Insert predicate -> a `member` set || predicate a
-  Delete predicate -> a `member` set && (not . predicate) a
+  Insert predicate -> predicate a || a `member` set
+  Delete predicate -> (not . predicate) a && a `member` set
 
 -- | Is a given element __not__ in the set?
 notMember :: a -> Set a -> Bool
