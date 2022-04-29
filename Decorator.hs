@@ -18,7 +18,7 @@ data Method = Move | Say | Attack
   deriving (Show, Eq)
 
 moveQuickly :: Decorator (Method -> IO ())
-moveQuickly _ (Move) = putStrLn "Running forward..."
+moveQuickly _ Move = putStrLn "Running forward..."
 moveQuickly f m = f m
 
 shout :: String -> Decorator (Method -> IO ())
@@ -26,7 +26,7 @@ shout roar _ Say = putStrLn $ (map toUpper roar) <> "!"
 shout _ f m = f m
 
 attackWithAxe :: Decorator (Method -> IO ())
-attackWithAxe _ (Attack) = putStrLn "Swinging axe..."
+attackWithAxe _ Attack = putStrLn "Swinging axe..."
 attackWithAxe f m = f m
 
 main :: IO ()
