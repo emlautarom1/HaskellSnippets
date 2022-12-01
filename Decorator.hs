@@ -22,7 +22,7 @@ moveQuickly _ Move = putStrLn "Running forward..."
 moveQuickly f m = f m
 
 shout :: String -> Decorator (Method -> IO ())
-shout roar _ Say = putStrLn $ (map toUpper roar) <> "!"
+shout roar _ Say = putStrLn $ map toUpper roar <> "!"
 shout _ f m = f m
 
 attackWithAxe :: Decorator (Method -> IO ())

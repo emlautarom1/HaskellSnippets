@@ -20,7 +20,7 @@ chunks :: Int -> [a] -> [[a]]
 chunks _ [] = []
 chunks n xs = let (ys, zs) = splitAt n xs in ys : chunks n zs
 
-permutations :: (Eq a, Show a) => [a] -> [[a]]
+permutations :: Eq a => [a] -> [[a]]
 permutations [] = [[]]
 permutations xs = do
   x <- xs

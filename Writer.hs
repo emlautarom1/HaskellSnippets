@@ -9,7 +9,7 @@ instance Functor Writer where
   fmap f (Writer a ms) = Writer (f a) ms
 
 instance Applicative Writer where
-  pure = (flip Writer) []
+  pure = flip Writer []
   (Writer fa ms) <*> (Writer a ns) = Writer (fa a) (ms ++ ns)
 
 instance Monad Writer where

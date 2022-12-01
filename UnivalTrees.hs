@@ -6,10 +6,11 @@ module UnivalTrees
 where
 
 data Tree a
-  = Empty -- Creates an empty node, a "leaf" of a Tree
-  | Node a (Tree a) (Tree a)
-  -- Creates a Tree from a Node with 2 children:
-  -- a left and a right, and both are also a Tree
+  = -- | Creates an empty node, a "leaf" of a Tree
+    Empty
+  | -- | Creates a Tree from a Node with 2 children:
+    -- a left and a right, and both are also a Tree
+    Node a (Tree a) (Tree a)
   deriving (Show, Eq)
 
 isUnival :: Eq a => Tree a -> Bool

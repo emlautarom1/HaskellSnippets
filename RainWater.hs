@@ -1,3 +1,5 @@
+module RainWater where
+
 {-
 Trapping Raing Water
 See: https://leetcode.com/problems/trapping-rain-water/

@@ -10,7 +10,6 @@ module Parenthesis (isBalanced) where
 -- >>> isBalanced "((()))()(())(*()()())**(())()()()()((*()*))((*()*)"
 -- True
 isBalanced :: [Char] -> Bool
-{- Hlint ignore "Redundant if" -}
 isBalanced str = go str []
   where
     go (c : cs) stack = case c of
