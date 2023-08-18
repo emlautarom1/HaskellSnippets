@@ -1,7 +1,8 @@
 {-# LANGUAGE TemplateHaskell #-}
 
-import SystemInfo (systemInfo)
+import Language.Haskell.TH.Syntax
+import Math (power)
 
 main :: IO ()
 main = do
-  putStrLn $ "Compile time info\n" <> $(systemInfo)
+  print $(lift $ power 2 4)
