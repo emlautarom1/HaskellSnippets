@@ -1,7 +1,5 @@
-{-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE RecordWildCards #-}
 
 module Main where
@@ -11,9 +9,6 @@ import Data.Bifunctor
 import Data.Has
 import Data.IORef (IORef, modifyIORef', newIORef, readIORef)
 
--- | Avoid's having to type a 'MonadReader' and 'MonadIO' constraint for every function
-type Application e m = (MonadReader e m, MonadIO m)
-
 runApplication :: env -> ReaderT env IO a -> IO a
 runApplication = flip runReaderT
 
@@ -21,32 +16,31 @@ runApplication = flip runReaderT
 --
 -- We can have as many implementations as we want.
 -- Implementations are just values of records of functions.
-newtype MessageProvider = MessageProvider {_getMessage :: forall m. MonadIO m => m String}
+newtype MessageProvider = MessageProvider {_getMessage :: IO String}
 
 -- We make functions "private", only exposing an utility that gets the resource from the environment
 -- and triggers the behavior in a single action,
-getMessage :: forall r e m. (Application e m, Has MessageProvider e) => m String
-getMessage = asks getter >>= \r -> _getMessage r
+getMessage :: (MonadIO m, MonadReader e m, Has MessageProvider e) => m String
+getMessage = asks getter >>= \r -> liftIO $ _getMessage r
 
 -- | Get's a message from the console
 consoleMessageProvider :: MessageProvider
-consoleMessageProvider = MessageProvider $
-  liftIO $ do
-    putStrLn "Enter a message: "
-    getLine
+consoleMessageProvider = MessageProvider $ do
+  putStrLn "Enter a message: "
+  getLine
 
 -- | Get's a constant message
 constantMessageProvider :: String -> MessageProvider
 constantMessageProvider msg = MessageProvider $ return msg
 
-newtype Logger = Logger {_logMessage :: forall m. MonadIO m => String -> m ()}
+newtype Logger = Logger {_logMessage :: String -> IO ()}
 
-logMessage :: forall r e m. (Application e m, Has Logger e) => String -> m ()
-logMessage msg = asks getter >>= \r -> _logMessage r msg
+logMessage :: (MonadIO m, MonadReader e m, Has Logger e) => String -> m ()
+logMessage msg = asks getter >>= \r -> liftIO $ _logMessage r msg
 
 -- | Log to the console
 consoleLogger :: Logger
-consoleLogger = Logger $ liftIO . putStrLn
+consoleLogger = Logger putStrLn
 
 -- | Accumulate logs in a List stored in a IORef
 accumLogger :: IO (IORef [String], Logger)
@@ -60,21 +54,21 @@ accumLogger = do
 prefixLogger :: String -> Logger -> Logger
 prefixLogger prefix logger = Logger $ \msg -> _logMessage logger $ prefix ++ msg
 
-newtype MessageConsumer = MessageConsumer {_consumeMessage :: forall m. MonadIO m => String -> m ()}
+newtype MessageConsumer = MessageConsumer {_consumeMessage :: String -> IO ()}
 
-consumeMessage :: forall r e m. (Application e m, Has MessageConsumer e) => String -> m ()
-consumeMessage msg = asks getter >>= \r -> _consumeMessage r msg
+consumeMessage :: (MonadIO m, MonadReader e m, Has MessageConsumer e) => String -> m ()
+consumeMessage msg = asks getter >>= \r -> liftIO $ _consumeMessage r msg
 
 -- | Consume a message by printing it to the console
 consoleMessageConsumer :: MessageConsumer
-consoleMessageConsumer = MessageConsumer $ liftIO . putStrLn
+consoleMessageConsumer = MessageConsumer putStrLn
 
 -- | Discards all messages
 nullMessageConsumer :: MessageConsumer
 nullMessageConsumer = MessageConsumer $ const $ return ()
 
 -- Actual business logic
-program :: (Application e m, Has Logger e, Has MessageProvider e, Has MessageConsumer e) => m ()
+program :: (MonadIO m, MonadReader e m, Has Logger e, Has MessageProvider e, Has MessageConsumer e) => m ()
 program = do
   logMessage "Initializing Program"
   msg <- getMessage
@@ -86,7 +80,7 @@ program = do
 
 -- We can have as many subprograms as we want and they can have their own dependencies
 -- Dependencies get automatically added to the caller's environment constraints
-subprogram :: (Has MessageConsumer e, Application e m) => String -> m ()
+subprogram :: (MonadIO m, MonadReader e m, Has MessageConsumer e) => String -> m ()
 subprogram msg = do
   consumeMessage msg
 
