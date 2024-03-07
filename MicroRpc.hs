@@ -80,5 +80,5 @@ main = do
       result <- runRpc methods rpc
       putStr $ "(" ++ fst rpc ++ ") "
       case result of
-        Right v -> putStrLn $ "Result: " ++ v
-        Left e -> print e
+        Right v -> putStrLn $ "Result: " <> v
+        Left e -> putStrLn $ "Error: " <> show e
