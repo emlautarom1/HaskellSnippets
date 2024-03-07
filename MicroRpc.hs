@@ -12,7 +12,7 @@ import Text.Read (readMaybe)
 
 data Method = Method
   { f :: String -> Maybe (IO String)
-  , expectedArgs :: TypeRep
+  , expectedTy :: TypeRep
   }
 
 mkMethod :: forall i o. (Typeable i, Read i, Show o) => (i -> IO o) -> Method
@@ -22,24 +22,24 @@ mkMethod f =
         Just args -> do
           Just $ show <$> f args
         Nothing -> Nothing
-    , expectedArgs = typeRep (Proxy :: Proxy i)
+    , expectedTy = typeRep (Proxy :: Proxy i)
     }
 
 data RpcError
-  = MismatchedArgs TypeRep
-  | MethodNotFound String
+  = MismatchedArgs {ty :: TypeRep, value :: String}
+  | MethodNotFound {name :: String}
 
 instance Show RpcError where
-  show (MismatchedArgs ty) = "Mismatched types, expected `" <> show ty <> "`"
+  show (MismatchedArgs ty value) = "`" <> value <> "` cannot be read as `" <> show ty <> "`"
   show (MethodNotFound name) = "Method `" <> name <> "` not found"
 
 runRpc :: Map String Method -> (String, String) -> IO (Either RpcError String)
 runRpc methods (method, args) = do
   case M.lookup method methods of
-    Nothing -> return $ Left $ MethodNotFound method
-    Just (Method f expectedArgs) -> do
+    Nothing -> return $ Left $ MethodNotFound {name = method}
+    Just (Method f expectedTy) -> do
       case f args of
-        Nothing -> return $ Left $ MismatchedArgs expectedArgs
+        Nothing -> return $ Left $ MismatchedArgs {ty = expectedTy, value = args}
         Just io -> Right <$> io
 
 ----------------------------------------
