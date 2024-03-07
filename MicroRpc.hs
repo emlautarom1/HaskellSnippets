@@ -12,7 +12,7 @@ import Text.Read (readMaybe)
 
 type MethodName = String
 
-type Methods = Map String Method
+type Methods = Map MethodName Method
 
 type Rpc = (MethodName, String)
 
