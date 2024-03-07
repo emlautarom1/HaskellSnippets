@@ -1,7 +1,7 @@
 import Control.Monad (forM_)
 import Data.Map (Map)
 import Data.Map qualified as M
-import Data.Typeable
+import Data.Typeable (Proxy (..), TypeRep, Typeable, typeRep)
 import Text.Read (readMaybe)
 
 ----------------------------------------
