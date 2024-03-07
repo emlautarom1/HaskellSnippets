@@ -10,8 +10,14 @@ import Text.Read (readMaybe)
 ----------------------------------------
 -- Lib
 
+type MethodName = String
+
+type Methods = Map String Method
+
+type Rpc = (MethodName, String)
+
 data Method = Method
-  { f :: String -> Maybe (IO String)
+  { f :: MethodName -> Maybe (IO String)
   , expectedTy :: TypeRep
   }
 
@@ -26,20 +32,20 @@ mkMethod f =
     }
 
 data RpcError
-  = MismatchedArgs {ty :: TypeRep, value :: String}
-  | MethodNotFound {name :: String}
+  = MismatchedArgs {ty :: TypeRep, args :: String}
+  | MethodNotFound {name :: MethodName}
 
 instance Show RpcError where
   show (MismatchedArgs ty value) = "`" <> value <> "` cannot be read as `" <> show ty <> "`"
   show (MethodNotFound name) = "Method `" <> name <> "` not found"
 
-runRpc :: Map String Method -> (String, String) -> IO (Either RpcError String)
+runRpc :: Methods -> Rpc -> IO (Either RpcError String)
 runRpc methods (method, args) = do
   case M.lookup method methods of
     Nothing -> return $ Left $ MethodNotFound {name = method}
     Just (Method f expectedTy) -> do
       case f args of
-        Nothing -> return $ Left $ MismatchedArgs {ty = expectedTy, value = args}
+        Nothing -> return $ Left $ MismatchedArgs {ty = expectedTy, args = args}
         Just io -> Right <$> io
 
 ----------------------------------------
