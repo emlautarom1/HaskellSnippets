@@ -1,6 +1,8 @@
 module MicroRpc (main) where
 
 import Control.Monad (forM_)
+import Control.Monad.IO.Class (MonadIO (liftIO))
+import Control.Monad.Reader (MonadReader, ReaderT, ask, runReaderT)
 import Data.IORef (atomicModifyIORef', newIORef)
 import Data.Map (Map)
 import Data.Map qualified as M
@@ -12,16 +14,16 @@ import Text.Read (readMaybe)
 
 type MethodName = String
 
-type Methods = Map MethodName Method
+type Methods m = Map MethodName (Method m)
 
 type Rpc = (MethodName, String)
 
-data Method = Method
-  { f :: MethodName -> Maybe (IO String)
+data Method m = Method
+  { f :: MethodName -> Maybe (m String)
   , expectedTy :: TypeRep
   }
 
-mkMethod :: forall i o. (Typeable i, Read i, Show o) => (i -> IO o) -> Method
+mkMethod :: forall m i o. (Monad m, Typeable i, Read i, Show o) => (i -> m o) -> Method m
 mkMethod f =
   Method
     { f = \s -> case readMaybe s of
@@ -39,14 +41,14 @@ instance Show RpcError where
   show (MismatchedArgs ty value) = "`" <> value <> "` cannot be read as `" <> show ty <> "`"
   show (MethodNotFound name) = "Method `" <> name <> "` not found"
 
-runRpc :: Methods -> Rpc -> IO (Either RpcError String)
+runRpc :: (Monad m) => Methods m -> Rpc -> m (Either RpcError String)
 runRpc methods (method, args) = do
   case M.lookup method methods of
     Nothing -> return $ Left $ MethodNotFound {name = method}
     Just (Method f expectedTy) -> do
       case f args of
         Nothing -> return $ Left $ MismatchedArgs {ty = expectedTy, args = args}
-        Just io -> Right <$> io
+        Just mv -> Right <$> mv
 
 ----------------------------------------
 -- Program
@@ -63,8 +65,10 @@ main = do
       custom ([_, _, code], _, _) = code
 
   counter <- newIORef 0
-  let faa :: () -> IO Int
-      faa () = atomicModifyIORef' counter (\x -> (x + 1, x))
+  let faa :: (MonadIO m, MonadReader Int m) => () -> m Int
+      faa () = do
+        increment <- ask
+        liftIO $ atomicModifyIORef' counter (\x -> (x + increment, x))
 
   let methods =
         M.fromList
@@ -83,7 +87,7 @@ main = do
     , ("even", show "boo!")
     ]
     $ \rpc -> do
-      result <- runRpc methods rpc
+      result <- flip runReaderT 1 $ runRpc methods rpc
       putStr $ "(" ++ fst rpc ++ ") "
       case result of
         Right v -> putStrLn $ "Result: " <> v
