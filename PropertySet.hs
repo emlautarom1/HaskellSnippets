@@ -46,7 +46,7 @@ data Set a
   = -- A set is either Empty
     Empty
   | -- Or another set with an operation applied over
-    (Set a) `WithOperation` (Operation a)
+    Apply (Operation a) (Set a)
 
 instance Semigroup (Set a) where
   (<>) = union
@@ -66,7 +66,7 @@ empty = Empty
 -- False
 member :: a -> Set a -> Bool
 member _ Empty = False
-member a (set `WithOperation` op) = case op of
+member a (Apply op set) = case op of
   Insert predicate -> predicate a || a `member` set
   Delete predicate -> (not . predicate) a && a `member` set
 
@@ -75,32 +75,26 @@ notMember :: a -> Set a -> Bool
 notMember a s = not $ member a s
 
 -- | Insert a single element in a set.
--- Insertion of an element already on the set is a no-op.
 --
 -- ==== __Examples__
 --
 -- >>> member 5 $ insert 5 $ empty
 -- True
 insert :: (Eq a) => a -> Set a -> Set a
-insert a s
-  | notMember a s = s `WithOperation` Insert (== a)
-  | otherwise = s
+insert a = Apply $ Insert (== a)
 
 -- | Insert all the elements that satisfy a @Predicate@ in a set.
 insertAll :: Predicate a -> Set a -> Set a
-insertAll p s = s `WithOperation` Insert p
+insertAll p = Apply $ Insert p
 
 -- | Delete a single element from a set.
--- Deletion of an element not in the set is a no-op.
 --
 -- ==== __Examples__
 --
 -- >>> member 5 $ delete 5 $ insert 5 $ empty
 -- False
 delete :: (Eq a) => a -> Set a -> Set a
-delete a s
-  | member a s = s `WithOperation` Delete (== a)
-  | otherwise = s
+delete a = Apply $ Delete (== a)
 
 -- | Delete all the elements that satisfy a given @Predicate@ in a set.
 --
@@ -109,15 +103,15 @@ delete a s
 -- >>> member 10 $ deleteAll (\x -> x `mod` 5 == 0) $ fromPredicate even
 -- False
 deleteAll :: Predicate a -> Set a -> Set a
-deleteAll p s = s `WithOperation` Delete p
+deleteAll p = Apply $ Delete p
 
 -- | Create a set with a single element.
 singleton :: (Eq a) => a -> Set a
-singleton a = insertAll (== a) empty
+singleton a = Apply (Insert (== a)) empty
 
 -- | Create a set with all the elements from a list.
 fromList :: (Eq a) => [a] -> Set a
-fromList l = insertAll (`elem` l) empty
+fromList l = Apply (Insert (`elem` l)) empty
 
 -- | Create a set with all the elements that satisfy a given @Predicate@.
 --
@@ -126,19 +120,19 @@ fromList l = insertAll (`elem` l) empty
 -- >>> member 10 $ fromPredicate (\x -> x `mod` 5 == 0)
 -- True
 fromPredicate :: Predicate a -> Set a
-fromPredicate p = insertAll p empty
+fromPredicate p = Apply (Insert p) empty
 
 -- | Union of two sets.
 union :: Set a -> Set a -> Set a
-union s1 s2 = s1 `WithOperation` Insert (`member` s2)
+union s1 s2 = Apply (Insert (`member` s2)) s1
 
 -- | Difference of two sets.
 difference :: Set a -> Set a -> Set a
-difference s1 s2 = s1 `WithOperation` Insert (`notMember` s2)
+difference s1 s2 = Apply (Insert (`notMember` s2)) s1
 
 -- | Intersection of two sets.
 intersection :: Set a -> Set a -> Set a
-intersection s1 s2 = empty `WithOperation` Insert (\x -> x `member` s1 && x `member` s2)
+intersection s1 s2 = Apply (Insert (\x -> x `member` s1 && x `member` s2)) empty
 
 -- | See 'difference'
 (\\) :: Set a -> Set a -> Set a
