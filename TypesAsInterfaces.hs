@@ -1,8 +1,12 @@
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE OverloadedLabels #-}
+{-# LANGUAGE OverloadedRecordDot #-}
 
 -- | Source: https://two-wrongs.com/types-as-interfaces
 module TypesAsInterfaces where
 
+import Data.Function
+import GHC.OverloadedLabels
 import GHC.Records
 
 type PlayerId = Int
@@ -61,6 +65,9 @@ msgFor = _recipient
 msgForExample2 :: PlayerId
 msgForExample2 = msgFor example2
 
+----------------------------------------
+-- Using Type Classes
+
 -- How can we write `msgFor` to be compatible with any ordering?
 -- We need to use type classes:
 class HasRecipient a where
@@ -82,10 +89,13 @@ msgForExample1' = msgFor' example1
 msgForExample2' :: PlayerId
 msgForExample2' = msgFor' example2
 
+-- Note though that we need to define a new type class for each field we want to access (`HasX` pattern)
+
 ----------------------------------------
 -- Generic approach using `HasField`
 
--- This class and instances could be derived automatically
+-- This class and instances could be derived automatically,
+-- for example: https://github.com/chiroptical/derive-has-field
 instance HasField "recipient" (Msg a) PlayerId where
   getField = _recipient
 
@@ -100,3 +110,26 @@ msgForExample1'' = msgFor'' example1
 
 msgForExample2'' :: PlayerId
 msgForExample2'' = msgFor'' example2
+
+-- Supports the usage of labels
+instance (HasField l a b) => IsLabel l (a -> b) where
+  fromLabel = getField @l
+
+msgFor''' :: (HasField "recipient" a PlayerId) => a -> PlayerId
+msgFor''' r = r & #recipient
+
+msgForExample1''' :: PlayerId
+msgForExample1''' = msgFor''' example1
+
+msgForExample2''' :: PlayerId
+msgForExample2''' = msgFor''' example2
+
+-- And even `OverloadedRecordDot`
+msgFor'''' :: (HasField "recipient" r a) => r -> a
+msgFor'''' r = r.recipient
+
+msgForExample1'''' :: PlayerId
+msgForExample1'''' = msgFor'''' example1
+
+msgForExample2'''' :: PlayerId
+msgForExample2'''' = msgFor'''' example2
