@@ -1,0 +1,23 @@
+cabal-version:   3.0
+name:            effects
+version:         0.1.0.0
+license:         NONE
+author:          Lautaro Emanuel
+maintainer:      emlautarom1@gmail.com
+build-type:      Simple
+extra-doc-files: CHANGELOG.md
+
+common warnings
+    ghc-options: -Wall
+
+executable effects
+    import:           warnings
+    main-is:          Main.hs
+    build-depends:    base < 5.0
+                    , effectful
+                    , effectful-core
+                    , effectful-plugin
+                    , extra
+    hs-source-dirs:   app
+    default-language: Haskell2010
+    ghc-options:      -fplugin=Effectful.Plugin
