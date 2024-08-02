@@ -1,5 +1,5 @@
 cabal-version:   3.0
-name:            effects
+name:            EffectfulPlayground
 version:         0.1.0.0
 license:         NONE
 author:          Lautaro Emanuel
@@ -10,7 +10,7 @@ extra-doc-files: CHANGELOG.md
 common warnings
     ghc-options: -Wall
 
-executable effects
+executable EffectfulPlayground
     import:           warnings
     main-is:          Main.hs
     build-depends:    base < 5.0
