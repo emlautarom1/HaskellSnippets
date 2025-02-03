@@ -26,13 +26,13 @@ data DBError = DBDeadLock | DBConnectionError
 
 type instance DispatchOf (DB e) = Dynamic
 
-dbWrite :: (HasCallStack, DB e :> es, Error e :> es) => Item -> Eff es ()
+dbWrite :: (HasCallStack, DB e :> es, Error e :> es, Show e) => Item -> Eff es ()
 dbWrite item = do
   send (DBWrite item) >>= \case
     Left e -> throwError e
     Right _ -> return ()
 
-dbRead :: (HasCallStack, DB e :> es, Error e :> es) => Key -> Eff es (Maybe Item)
+dbRead :: (HasCallStack, DB e :> es, Error e :> es, Show e) => Key -> Eff es (Maybe Item)
 dbRead key = do
   send (DBRead key) >>= \case
     Left e -> throwError e
