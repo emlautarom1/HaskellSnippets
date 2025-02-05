@@ -49,7 +49,7 @@ locally f (MkEff run) = MkEff $ \env ->
 locally_ :: (e :> es) => e -> Eff es a -> Eff es a
 locally_ newImpl = locally (const newImpl)
 
-using :: e -> Eff (e ::: es) () -> Eff es ()
+using :: e -> Eff (e ::: es) a -> Eff es a
 using impl (MkEff run) = MkEff $ \env -> run (impl ::: env)
 
 ----------------------------------------
