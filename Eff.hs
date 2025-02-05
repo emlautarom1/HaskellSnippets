@@ -3,9 +3,15 @@
 
 module Eff (main) where
 
+import Control.Exception (throwIO)
+import Control.Monad.Fix (fix)
+import Control.Monad.IO.Class (MonadIO (..))
 import Control.Exception
 import Control.Monad.Fix
 import Control.Monad.IO.Class
+import Control.Exception (throwIO)
+import Control.Monad.Fix (fix)
+import Control.Monad.IO.Class (MonadIO (..))
 import Data.IORef
 
 ----------------------------------------
@@ -87,6 +93,29 @@ instance {-# OVERLAPPABLE #-} (a :> r) => a :> (l ::: r) where
 ----------------------------------------
 -- User code
 
+data State a = State
+  { _get :: forall es. Eff es a
+  , _modify :: forall es. (a -> a) -> Eff es ()
+  }
+
+get :: (State a :> es) => Eff es a
+get = handler $ \State {..} -> _get
+
+modify :: (State a :> es) => (a -> a) -> Eff es ()
+modify f = handler $ \State {..} -> _modify f
+
+put :: (State a :> es) => a -> Eff es ()
+put a = modify (const a)
+
+newLocalState :: a -> IO (State a)
+newLocalState a = do
+  ref <- newIORef a
+  return $
+    State
+      { _get = liftIO $ readIORef ref
+      , _modify = liftIO . modifyIORef' ref
+      }
+
 newtype Logger = Logger
   { _logMsg :: forall es. String -> Eff es ()
   }
@@ -110,8 +139,8 @@ getMsg = handler $ \MsgProvider {..} -> _getMsg
 stdinMsgProvider :: MsgProvider String
 stdinMsgProvider = MsgProvider {_getMsg = liftIO getLine}
 
-mkFixedMessageProvider :: [a] -> IO (MsgProvider a)
-mkFixedMessageProvider msgs = do
+newFixedMessageProvider :: [a] -> IO (MsgProvider a)
+newFixedMessageProvider msgs = do
   msgs <- newIORef msgs
   return $ MsgProvider {_getMsg = liftIO $ atomicModifyIORef' msgs $ \msgs -> (tail msgs, head msgs)}
 
@@ -153,7 +182,7 @@ echoServer = do
   fix $ \continue -> do
     getMsg >>= \msg -> case msg of
       "exit" -> do
-        tracing "exit" $
+        tracing "exit" $ do
           logMsg "goodbye"
       "abort" -> do
         abort "something went wrong!"
@@ -165,8 +194,9 @@ main :: IO ()
 main = do
   let logger = stdoutLogger
   let abort = throwAbort
-  let trace = noTracing
-  msgProvider <- mkFixedMessageProvider ["hello", "world", "exit"]
+  let trace = logTracing logger
+  msgProvider <- newFixedMessageProvider ["hello", "world", "exit"]
+  state <- newLocalState (0 :: Int)
 
-  runEff (logger ::: abort ::: trace ::: msgProvider) $ do
+  runEff (logger ::: abort ::: trace ::: msgProvider ::: state) $ do
     echoServer
