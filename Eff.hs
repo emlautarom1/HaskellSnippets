@@ -133,7 +133,8 @@ echoServer = do
   fix $ \continue -> do
     getMsg >>= \msg -> case msg of
       "exit" -> do
-        logMsg "goodbye"
+        tracing "exit" $
+          logMsg "goodbye"
       "abort" -> do
         abort "something went wrong!"
       _ -> do
@@ -142,6 +143,13 @@ echoServer = do
 
 noLogger :: Logger
 noLogger = Logger {_logMsg = \_ -> return ()}
+
+tracing :: (Logger :> es) => String -> Eff es a -> Eff es a
+tracing msg action = do
+  logMsg $ ">>> starting: " ++ msg
+  a <- action
+  logMsg $ "<<< done: " ++ msg
+  return a
 
 main :: IO ()
 main = do
