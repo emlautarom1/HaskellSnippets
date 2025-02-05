@@ -1,0 +1,28 @@
+cabal-version:      3.0
+name:               DocsExample
+version:            0.1.0.0
+license:            MIT
+license-file:       LICENSE
+author:             Lautaro Emanuel
+maintainer:         emlautarom1@gmail.com
+category:           Development
+build-type:         Simple
+extra-doc-files:    CHANGELOG.md
+
+common warnings
+    ghc-options: -Wall
+
+flag Documentation
+    default: False
+    description: Whether to build documentation modules
+
+library
+    import:           warnings
+    exposed-modules:  MyLib
+    if flag(Documentation)
+        exposed-modules:
+                        Docs
+    -- other-extensions:
+    build-depends:    base ^>=4.18.2.1
+    hs-source-dirs:   src
+    default-language: Haskell2010
