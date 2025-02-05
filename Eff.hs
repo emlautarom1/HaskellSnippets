@@ -18,49 +18,39 @@ instance Functor (Eff env) where
     a <- ea env
     let b = f a
     return b
-  {-# INLINE fmap #-}
 
 instance Applicative (Eff env) where
   pure x = MkEff $ \_ -> return x
-  {-# INLINE pure #-}
   MkEff eab <*> MkEff ea = MkEff $ \env -> do
     ab <- eab env
     a <- ea env
     let b = ab a
     return b
-  {-# INLINE (<*>) #-}
 
 instance Monad (Eff env) where
   return = pure
-  {-# INLINE return #-}
   MkEff ea >>= faeb = MkEff $ \env -> do
     a <- ea env
     let (MkEff eb) = faeb a
     eb env
-  {-# INLINE (>>=) #-}
 
 instance MonadIO (Eff env) where
   liftIO io = MkEff $ const io
-  {-# INLINE liftIO #-}
 
 runEff :: env -> Eff env a -> IO a
 runEff env (MkEff f) = f env
-{-# INLINE runEff #-}
 
 locally :: (e :> es) => (e -> e) -> Eff es a -> Eff es a
 locally f (MkEff run) = MkEff $ \env ->
   let currImpl = extract env
       newImpl = f currImpl
    in run (replace newImpl env)
-{-# INLINE locally #-}
 
 locally_ :: (e :> es) => e -> Eff es a -> Eff es a
 locally_ newImpl = locally (const newImpl)
-{-# INLINE locally_ #-}
 
 using :: e -> Eff (e ::: es) () -> Eff es ()
 using impl (MkEff run) = MkEff $ \env -> run (impl ::: env)
-{-# INLINE using #-}
 
 ----------------------------------------
 -- Minimal `Has` class `(:>)` with tuples as heterogeneous lists
@@ -79,21 +69,15 @@ infixr 1 :::
 
 instance a :> a where
   extract a = a
-  {-# INLINE extract #-}
   replace _ a = a
-  {-# INLINE replace #-}
 
 instance {-# OVERLAPPING #-} a :> (a ::: x) where
   extract (a, _) = a
-  {-# INLINE extract #-}
   replace a (_, x) = (a, x)
-  {-# INLINE replace #-}
 
 instance {-# OVERLAPPABLE #-} (a :> r) => a :> (l ::: r) where
   extract (_, r) = extract r
-  {-# INLINE extract #-}
   replace a (l, r) = (l, replace a r)
-  {-# INLINE replace #-}
 
 ----------------------------------------
 -- User code
@@ -104,7 +88,6 @@ newtype Logger = Logger
 
 logMsg :: (Logger :> env) => String -> Eff env ()
 logMsg msg = MkEff $ \env -> _logMsg (extract env) msg
-{-# INLINE logMsg #-}
 
 newtype MsgProvider a = MsgProvider
   { _getMsg :: IO a
@@ -112,7 +95,6 @@ newtype MsgProvider a = MsgProvider
 
 getMsg :: (MsgProvider a :> env) => Eff env a
 getMsg = MkEff $ \env -> _getMsg (extract env)
-{-# INLINE getMsg #-}
 
 newtype Abort = Abort
   { _abort :: String -> IO ()
@@ -120,7 +102,6 @@ newtype Abort = Abort
 
 abort :: (Abort :> env) => String -> Eff env ()
 abort cause = MkEff $ \env -> _abort (extract env) cause
-{-# INLINE abort #-}
 
 defAbort :: Abort
 defAbort = Abort {_abort = throwIO . userError}
