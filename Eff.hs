@@ -134,11 +134,11 @@ tracing msg action = do
 
 main :: IO ()
 main = do
-  let logger = Logger {_logMsg = putStrLn}
+  let stdoutLogger = Logger {_logMsg = putStrLn}
   let stdinMsgProvider = MsgProvider {_getMsg = getLine}
   fixedMsgProvider <- do
     msgs <- newIORef ["Hello", "World", "exit"]
     return $ MsgProvider {_getMsg = atomicModifyIORef' msgs $ \msgs -> (tail msgs, head msgs)}
 
-  runEff (logger ::: fixedMsgProvider ::: defAbort) $ do
+  runEff (stdoutLogger ::: fixedMsgProvider ::: defAbort) $ do
     echoServer
