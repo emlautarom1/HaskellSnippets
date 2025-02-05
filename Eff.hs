@@ -5,6 +5,7 @@ module Eff (main) where
 import Control.Exception
 import Control.Monad
 import Control.Monad.Fix
+import Control.Monad.IO.Class
 import Data.IORef
 
 ----------------------------------------
@@ -37,6 +38,10 @@ instance Monad (Eff env) where
     let (MkEff eb) = faeb a
     eb env
   {-# INLINE (>>=) #-}
+
+instance MonadIO (Eff env) where
+  liftIO io = MkEff $ const io
+  {-# INLINE liftIO #-}
 
 runEff :: env -> Eff env a -> IO a
 runEff env (MkEff f) = f env
