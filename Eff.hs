@@ -11,15 +11,15 @@ import Data.IORef
 ----------------------------------------
 -- `Eff` monad, essentially `ReaderT env IO`
 
-newtype Eff env a = MkEff (env -> IO a)
+newtype Eff es a = MkEff (es -> IO a)
 
-instance Functor (Eff env) where
+instance Functor (Eff es) where
   fmap f (MkEff ea) = MkEff $ \env -> do
     a <- ea env
     let b = f a
     return b
 
-instance Applicative (Eff env) where
+instance Applicative (Eff es) where
   pure x = MkEff $ \_ -> return x
   MkEff eab <*> MkEff ea = MkEff $ \env -> do
     ab <- eab env
@@ -27,14 +27,14 @@ instance Applicative (Eff env) where
     let b = ab a
     return b
 
-instance Monad (Eff env) where
+instance Monad (Eff es) where
   return = pure
   MkEff ea >>= faeb = MkEff $ \env -> do
     a <- ea env
     let (MkEff eb) = faeb a
     eb env
 
-instance MonadIO (Eff env) where
+instance MonadIO (Eff es) where
   liftIO io = MkEff $ const io
 
 runEff :: es -> Eff es a -> IO a
@@ -42,14 +42,11 @@ runEff env (MkEff f) = f env
 
 handler :: (e :> es) => (e -> Eff es a) -> Eff es a
 handler f = do
-  h <- extract <$> MkEff return
-  f h
+  impl <- extract <$> MkEff return
+  f impl
 
 locally :: (e :> es) => (e -> e) -> Eff es a -> Eff es a
-locally f (MkEff run) = MkEff $ \env ->
-  let currImpl = extract env
-      newImpl = f currImpl
-   in run (replace newImpl env)
+locally f (MkEff run) = MkEff $ \env -> run (alter f env)
 
 locally_ :: (e :> es) => e -> Eff es a -> Eff es a
 locally_ newImpl = locally (const newImpl)
@@ -61,9 +58,9 @@ using impl (MkEff run) = MkEff $ \env -> run (impl ::: env)
 -- Minimal `Has` class `(:>)` with tuples as heterogeneous lists
 
 class a :> t where
-  {-# MINIMAL extract, replace #-}
+  {-# MINIMAL extract, alter #-}
   extract :: t -> a
-  replace :: a -> t -> t
+  alter :: (a -> a) -> t -> t
 
 type a ::: b = (a, b)
 
@@ -74,15 +71,15 @@ infixr 1 :::
 
 instance a :> a where
   extract a = a
-  replace _ a = a
+  alter f = f
 
 instance {-# OVERLAPPING #-} a :> (a ::: x) where
   extract (a, _) = a
-  replace a (_, x) = (a, x)
+  alter f (a, x) = (f a, x)
 
 instance {-# OVERLAPPABLE #-} (a :> r) => a :> (l ::: r) where
   extract (_, r) = extract r
-  replace a (l, r) = (l, replace a r)
+  alter f (l, r) = (l, alter f r)
 
 ----------------------------------------
 -- User code
@@ -145,14 +142,14 @@ stdinMsgProvider = MsgProvider {_getMsg = liftIO getLine}
 
 newFixedMessageProvider :: [a] -> IO (MsgProvider a)
 newFixedMessageProvider msgs = do
-  msgs <- newIORef msgs
-  return $ MsgProvider {_getMsg = liftIO $ atomicModifyIORef' msgs $ \msgs -> (tail msgs, head msgs)}
+  ref <- newIORef msgs
+  return $ MsgProvider {_getMsg = liftIO $ atomicModifyIORef' ref $ \msgs -> (tail msgs, head msgs)}
 
 newtype Abort = Abort
   { _abort :: forall es. String -> Eff es ()
   }
 
-abort :: (Abort :> env) => String -> Eff env ()
+abort :: (Abort :> es) => String -> Eff es ()
 abort cause = handler $ \Abort {..} -> _abort cause
 
 throwAbort :: Abort
@@ -163,17 +160,17 @@ newtype Trace = Trace
   }
 
 tracing :: (Trace :> es) => String -> Eff es a -> Eff es a
-tracing label action = handler $ \Trace {..} -> _tracing label action
+tracing label eff = handler $ \Trace {..} -> _tracing label eff
 
 noTracing :: Trace
-noTracing = Trace $ \_ action -> action
+noTracing = Trace $ \_ eff -> eff
 
 logTracing :: Logger -> Trace
 logTracing logger =
-  Trace $ \label action -> do
+  Trace $ \label eff -> do
     using logger $ do
       logMsg $ ">>> in: " ++ label
-    a <- action
+    a <- eff
     using logger $ do
       logMsg $ "<<< out: " ++ label
     return a
