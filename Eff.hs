@@ -42,11 +42,28 @@ runEff :: env -> Eff env a -> IO a
 runEff env (MkEff f) = f env
 {-# INLINE runEff #-}
 
+locally :: (e :> es) => (e -> e) -> Eff es a -> Eff es a
+locally f (MkEff run) = MkEff $ \env ->
+  let currImpl = extract env
+      newImpl = f currImpl
+   in run (replace newImpl env)
+{-# INLINE locally #-}
+
+locally_ :: (e :> es) => e -> Eff es a -> Eff es a
+locally_ newImpl = locally (const newImpl)
+{-# INLINE locally_ #-}
+
+using :: e -> Eff (e ::: es) () -> Eff es ()
+using impl (MkEff run) = MkEff $ \env -> run (impl ::: env)
+{-# INLINE using #-}
+
 ----------------------------------------
 -- Minimal `Has` class `(:>)` with tuples as heterogeneous lists
 
 class a :> t where
-  impl :: t -> a
+  {-# MINIMAL extract, replace #-}
+  extract :: t -> a
+  replace :: a -> t -> t
 
 type a ::: b = (a, b)
 
@@ -56,16 +73,22 @@ pattern a ::: b = (a, b)
 infixr 1 :::
 
 instance a :> a where
-  impl a = a
-  {-# INLINE impl #-}
+  extract a = a
+  {-# INLINE extract #-}
+  replace _ a = a
+  {-# INLINE replace #-}
 
 instance {-# OVERLAPPING #-} a :> (a ::: x) where
-  impl (a, _) = a
-  {-# INLINE impl #-}
+  extract (a, _) = a
+  {-# INLINE extract #-}
+  replace a (_, x) = (a, x)
+  {-# INLINE replace #-}
 
 instance {-# OVERLAPPABLE #-} (a :> r) => a :> (l ::: r) where
-  impl (_, r) = impl r
-  {-# INLINE impl #-}
+  extract (_, r) = extract r
+  {-# INLINE extract #-}
+  replace a (l, r) = (l, replace a r)
+  {-# INLINE replace #-}
 
 ----------------------------------------
 -- User code
@@ -75,7 +98,7 @@ newtype Logger = Logger
   }
 
 logMsg :: (Logger :> env) => String -> Eff env ()
-logMsg msg = MkEff $ \env -> _logMsg (impl env) msg
+logMsg msg = MkEff $ \env -> _logMsg (extract env) msg
 {-# INLINE logMsg #-}
 
 newtype MsgProvider a = MsgProvider
@@ -83,7 +106,7 @@ newtype MsgProvider a = MsgProvider
   }
 
 getMsg :: (MsgProvider a :> env) => Eff env a
-getMsg = MkEff $ \env -> _getMsg (impl env)
+getMsg = MkEff $ \env -> _getMsg (extract env)
 {-# INLINE getMsg #-}
 
 newtype Abort = Abort
@@ -91,7 +114,7 @@ newtype Abort = Abort
   }
 
 abort :: (Abort :> env) => String -> Eff env ()
-abort cause = MkEff $ \env -> _abort (impl env) cause
+abort cause = MkEff $ \env -> _abort (extract env) cause
 {-# INLINE abort #-}
 
 defAbort :: Abort
@@ -100,6 +123,8 @@ defAbort = Abort {_abort = throwIO . userError}
 echoServer :: (Logger :> es, MsgProvider String :> es, Abort :> es) => Eff es ()
 echoServer = do
   logMsg "echo server; type 'exit' to quit"
+  locally_ noLogger $ do
+    logMsg "secret"
   fix $ \continue -> do
     getMsg >>= \msg -> case msg of
       "exit" -> do
@@ -110,15 +135,16 @@ echoServer = do
         logMsg msg
         continue
 
+noLogger :: Logger
+noLogger = Logger {_logMsg = \_ -> return ()}
+
 main :: IO ()
 main = do
   let logger = Logger {_logMsg = putStrLn}
-  let noLogger = Logger {_logMsg = \_ -> return ()}
-
   let stdinMsgProvider = MsgProvider {_getMsg = getLine}
   fixedMsgProvider <- do
     msgs <- newIORef ["Hello", "World", "exit"]
-    return $ MsgProvider {_getMsg = atomicModifyIORef msgs $ \msgs -> (tail msgs, head msgs)}
+    return $ MsgProvider {_getMsg = atomicModifyIORef' msgs $ \msgs -> (tail msgs, head msgs)}
 
-  runEff (logger ::: stdinMsgProvider ::: defAbort) $ do
+  runEff (logger ::: fixedMsgProvider ::: defAbort) $ do
     echoServer
