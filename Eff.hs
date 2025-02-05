@@ -183,7 +183,7 @@ echoServer = do
   logMsg "echo server; type 'exit' to quit"
   locally_ noLogger $ do
     secret <- ask
-    logMsg secret
+    logMsg $ "secret is " ++ secret
   fix $ \continue -> do
     getMsg >>= \msg -> case msg of
       "exit" -> do
@@ -203,5 +203,5 @@ main = do
   msgProvider <- newFixedMessageProvider ["hello", "world", "exit"]
   state <- newLocalState (0 :: Int)
 
-  runEff (logger ::: abort ::: trace ::: msgProvider ::: reader "secret") $ do
+  runEff (logger ::: abort ::: trace ::: msgProvider ::: reader "42") $ do
     echoServer
