@@ -146,10 +146,10 @@ newFixedMessageProvider msgs = do
   return $ MsgProvider {_getMsg = liftIO $ atomicModifyIORef' ref $ \msgs -> (tail msgs, head msgs)}
 
 newtype Abort = Abort
-  { _abort :: forall es. String -> Eff es ()
+  { _abort :: forall es a. String -> Eff es a
   }
 
-abort :: (Abort :> es) => String -> Eff es ()
+abort :: (Abort :> es) => String -> Eff es a
 abort cause = handler $ \Abort {..} -> _abort cause
 
 throwAbort :: Abort
@@ -188,6 +188,7 @@ echoServer = do
           logMsg "goodbye"
       "abort" -> do
         abort "something went wrong!"
+        logMsg "unreachable"
       _ -> do
         logMsg msg
         continue
