@@ -1,14 +1,12 @@
-{-# LANGUAGE DataKinds #-}
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE RecordWildCards #-}
 
 module Eff (main) where
 
-import Control.Exception (throwIO)
-import Control.Monad.Fix (fix)
-import Control.Monad.IO.Class (MonadIO (..))
+import Control.Exception
+import Control.Monad.Fix
+import Control.Monad.IO.Class
 import Data.IORef
-import GHC.TypeError
 
 ----------------------------------------
 -- `Eff` monad, essentially `ReaderT env IO`
@@ -86,10 +84,6 @@ instance {-# OVERLAPPABLE #-} (a :> r) => a :> (l ::: r) where
   extract (_, r) = extract r
   replace a (l, r) = (l, replace a r)
 
-instance {-# OVERLAPPABLE #-} (TypeError (Text "No handler for `" :<>: ShowType a :<>: Text "`")) => a :> b where
-  extract = undefined
-  replace = undefined
-
 ----------------------------------------
 -- User code
 
@@ -115,6 +109,16 @@ newLocalState a = do
       { _get = liftIO $ readIORef ref
       , _modify = liftIO . modifyIORef' ref
       }
+
+newtype Reader a = Reader
+  { _ask :: forall es. Eff es a
+  }
+
+ask :: (Reader a :> es) => Eff es a
+ask = handler $ \Reader {..} -> _ask
+
+reader :: a -> Reader a
+reader a = Reader {_ask = return a}
 
 newtype Logger = Logger
   { _logMsg :: forall es. String -> Eff es ()
@@ -174,11 +178,12 @@ logTracing logger =
       logMsg $ "<<< out: " ++ label
     return a
 
-echoServer :: (Logger :> es, MsgProvider String :> es, Abort :> es, Trace :> es) => Eff es ()
+echoServer :: (Logger :> es, MsgProvider String :> es, Abort :> es, Trace :> es, Reader String :> es) => Eff es ()
 echoServer = do
   logMsg "echo server; type 'exit' to quit"
   locally_ noLogger $ do
-    logMsg "secret"
+    secret <- ask
+    logMsg secret
   fix $ \continue -> do
     getMsg >>= \msg -> case msg of
       "exit" -> do
@@ -198,5 +203,5 @@ main = do
   msgProvider <- newFixedMessageProvider ["hello", "world", "exit"]
   state <- newLocalState (0 :: Int)
 
-  runEff (logger ::: abort ::: trace ::: msgProvider ::: state) $ do
+  runEff (logger ::: abort ::: trace ::: msgProvider ::: reader "secret") $ do
     echoServer
