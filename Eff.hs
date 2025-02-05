@@ -2,12 +2,10 @@
 
 module Eff (main) where
 
-import Control.Exception (Exception, throwIO)
+import Control.Exception
 import Control.Monad
 import Control.Monad.Fix
 import Data.IORef
-import GHC.Exception.Type
-import Language.Haskell.TH
 
 ----------------------------------------
 -- `Eff` monad, essentially `ReaderT env IO`
