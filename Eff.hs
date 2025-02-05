@@ -1,9 +1,9 @@
 {-# LANGUAGE PatternSynonyms #-}
+{-# LANGUAGE RecordWildCards #-}
 
 module Eff (main) where
 
 import Control.Exception
-import Control.Monad
 import Control.Monad.Fix
 import Control.Monad.IO.Class
 import Data.IORef
@@ -37,8 +37,13 @@ instance Monad (Eff env) where
 instance MonadIO (Eff env) where
   liftIO io = MkEff $ const io
 
-runEff :: env -> Eff env a -> IO a
+runEff :: es -> Eff es a -> IO a
 runEff env (MkEff f) = f env
+
+handler :: (e :> es) => (e -> Eff es a) -> Eff es a
+handler f = do
+  h <- extract <$> MkEff return
+  f h
 
 locally :: (e :> es) => (e -> e) -> Eff es a -> Eff es a
 locally f (MkEff run) = MkEff $ \env ->
@@ -83,30 +88,64 @@ instance {-# OVERLAPPABLE #-} (a :> r) => a :> (l ::: r) where
 -- User code
 
 newtype Logger = Logger
-  { _logMsg :: String -> IO ()
+  { _logMsg :: forall es. String -> Eff es ()
   }
 
-logMsg :: (Logger :> env) => String -> Eff env ()
-logMsg msg = MkEff $ \env -> _logMsg (extract env) msg
+logMsg :: (Logger :> es) => String -> Eff es ()
+logMsg msg = handler $ \Logger {..} -> _logMsg msg
+
+noLogger :: Logger
+noLogger = Logger {_logMsg = \_ -> return ()}
+
+stdoutLogger :: Logger
+stdoutLogger = Logger {_logMsg = liftIO . putStrLn}
 
 newtype MsgProvider a = MsgProvider
-  { _getMsg :: IO a
+  { _getMsg :: forall es. Eff es a
   }
 
-getMsg :: (MsgProvider a :> env) => Eff env a
-getMsg = MkEff $ \env -> _getMsg (extract env)
+getMsg :: (MsgProvider a :> es) => Eff es a
+getMsg = handler $ \MsgProvider {..} -> _getMsg
+
+stdinMsgProvider :: MsgProvider String
+stdinMsgProvider = MsgProvider {_getMsg = liftIO getLine}
+
+mkFixedMessageProvider :: [a] -> IO (MsgProvider a)
+mkFixedMessageProvider msgs = do
+  msgs <- newIORef msgs
+  return $ MsgProvider {_getMsg = liftIO $ atomicModifyIORef' msgs $ \msgs -> (tail msgs, head msgs)}
 
 newtype Abort = Abort
-  { _abort :: String -> IO ()
+  { _abort :: forall es. String -> Eff es ()
   }
 
 abort :: (Abort :> env) => String -> Eff env ()
-abort cause = MkEff $ \env -> _abort (extract env) cause
+abort cause = handler $ \Abort {..} -> _abort cause
 
-defAbort :: Abort
-defAbort = Abort {_abort = throwIO . userError}
+throwAbort :: Abort
+throwAbort = Abort {_abort = liftIO . throwIO . userError}
 
-echoServer :: (Logger :> es, MsgProvider String :> es, Abort :> es) => Eff es ()
+newtype Trace = Trace
+  { _tracing :: forall es a. String -> Eff es a -> Eff es a
+  }
+
+tracing :: (Trace :> es) => String -> Eff es a -> Eff es a
+tracing label action = handler $ \Trace {..} -> _tracing label action
+
+noTracing :: Trace
+noTracing = Trace $ \_ action -> action
+
+logTracing :: Logger -> Trace
+logTracing logger =
+  Trace $ \label action -> do
+    using logger $ do
+      logMsg $ ">>> in: " ++ label
+    a <- action
+    using logger $ do
+      logMsg $ "<<< out: " ++ label
+    return a
+
+echoServer :: (Logger :> es, MsgProvider String :> es, Abort :> es, Trace :> es) => Eff es ()
 echoServer = do
   logMsg "echo server; type 'exit' to quit"
   locally_ noLogger $ do
@@ -122,23 +161,12 @@ echoServer = do
         logMsg msg
         continue
 
-noLogger :: Logger
-noLogger = Logger {_logMsg = \_ -> return ()}
-
-tracing :: (Logger :> es) => String -> Eff es a -> Eff es a
-tracing msg action = do
-  logMsg $ ">>> starting: " ++ msg
-  a <- action
-  logMsg $ "<<< done: " ++ msg
-  return a
-
 main :: IO ()
 main = do
-  let stdoutLogger = Logger {_logMsg = putStrLn}
-  let stdinMsgProvider = MsgProvider {_getMsg = getLine}
-  fixedMsgProvider <- do
-    msgs <- newIORef ["Hello", "World", "exit"]
-    return $ MsgProvider {_getMsg = atomicModifyIORef' msgs $ \msgs -> (tail msgs, head msgs)}
+  let logger = stdoutLogger
+  let abort = throwAbort
+  let trace = noTracing
+  msgProvider <- mkFixedMessageProvider ["hello", "world", "exit"]
 
-  runEff (stdoutLogger ::: fixedMsgProvider ::: defAbort) $ do
+  runEff (logger ::: abort ::: trace ::: msgProvider) $ do
     echoServer
