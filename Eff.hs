@@ -1,3 +1,4 @@
+{-# LANGUAGE DataKinds #-}
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE RecordWildCards #-}
 
@@ -6,13 +7,8 @@ module Eff (main) where
 import Control.Exception (throwIO)
 import Control.Monad.Fix (fix)
 import Control.Monad.IO.Class (MonadIO (..))
-import Control.Exception
-import Control.Monad.Fix
-import Control.Monad.IO.Class
-import Control.Exception (throwIO)
-import Control.Monad.Fix (fix)
-import Control.Monad.IO.Class (MonadIO (..))
 import Data.IORef
+import GHC.TypeError
 
 ----------------------------------------
 -- `Eff` monad, essentially `ReaderT env IO`
@@ -89,6 +85,10 @@ instance {-# OVERLAPPING #-} a :> (a ::: x) where
 instance {-# OVERLAPPABLE #-} (a :> r) => a :> (l ::: r) where
   extract (_, r) = extract r
   replace a (l, r) = (l, replace a r)
+
+instance {-# OVERLAPPABLE #-} (TypeError (Text "No handler for `" :<>: ShowType a :<>: Text "`")) => a :> b where
+  extract = undefined
+  replace = undefined
 
 ----------------------------------------
 -- User code
