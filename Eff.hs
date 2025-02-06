@@ -193,7 +193,14 @@ logTracing logger =
       logMsg $ "<<< out: " ++ label
     return a
 
-echoServer :: (Logger :> es, MsgProvider String :> es, Abort :> es, Trace :> es, Reader String :> es) => Eff es ()
+usingStateLogger :: State [String] -> Eff (Logger ::: es) a -> Eff es (a, [String])
+usingStateLogger state inner = do
+  let logger = Logger {_logMsg = \msg -> using state $ do modify (msg :)}
+  r <- using logger $ do inner
+  logs <- using state $ do get
+  return (r, reverse logs)
+
+echoServer :: (Logger :> es, MsgProvider String :> es, Abort :> es, Trace :> es, Reader String :> es, State Int :> es) => Eff es ()
 echoServer = do
   logMsg "echo server; type 'exit' to quit"
   locally_ noLogger $ do
