@@ -40,6 +40,9 @@ instance MonadIO (Eff es) where
 runEff :: es -> Eff es a -> IO a
 runEff env (MkEff f) = f env
 
+unliftIO :: ((forall a. Eff es a -> IO a) -> IO b) -> Eff es b
+unliftIO f = MkEff $ \env -> f (runEff env)
+
 handler :: (e :> es) => (e -> Eff es a) -> Eff es a
 handler f = do
   impl <- extract <$> MkEff return
