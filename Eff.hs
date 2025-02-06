@@ -37,26 +37,20 @@ instance Monad (Eff es) where
 instance MonadIO (Eff es) where
   liftIO io = MkEff $ const io
 
-runEff :: es -> Eff es a -> IO a
-runEff env (MkEff f) = f env
-
-runEff_ :: Eff () a -> IO a
-runEff_ (MkEff f) = f ()
+runEff :: Eff () a -> IO a
+runEff (MkEff f) = f ()
 
 unliftIO :: ((forall a. Eff es a -> IO a) -> IO b) -> Eff es b
-unliftIO f = MkEff $ \env -> f (runEff env)
+unliftIO f = MkEff $ \env -> f (\(MkEff run) -> run env)
 
 request :: (e :> es) => Eff es e
 request = extract <$> MkEff return
 
-locally :: (e :> es) => (e -> e) -> Eff es a -> Eff es a
-locally f (MkEff run) = MkEff $ \env -> run (alter f env)
-
-locally_ :: (e :> es) => e -> Eff es a -> Eff es a
-locally_ newImpl = locally (const newImpl)
-
 using :: e -> Eff (e ::: es) a -> Eff es a
 using impl (MkEff run) = MkEff $ \env -> run (impl ::: env)
+
+locally :: (e :> es) => (e -> e) -> Eff es a -> Eff es a
+locally f (MkEff run) = MkEff $ \env -> run (alter f env)
 
 ----------------------------------------
 -- Minimal `Has` class `(:>)` with tuples as heterogeneous lists
@@ -203,7 +197,7 @@ usingStateLogger state inner = do
 echoServer :: (Logger :> es, MsgProvider String :> es, Abort :> es, Trace :> es, Reader String :> es, State Int :> es) => Eff es ()
 echoServer = do
   logMsg "echo server; type 'exit' to quit"
-  locally_ noLogger $ do
+  using noLogger $ do
     secret <- ask
     logMsg $ "secret is " ++ secret
   fix $ \continue -> do
@@ -228,7 +222,7 @@ main = do
 
   putStrLn "main: begin"
   (_, count) <-
-    runEff_
+    runEff
       $ usingLocalState (0 :: Int)
         . using logger
         . using abort
