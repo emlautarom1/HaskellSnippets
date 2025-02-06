@@ -1,3 +1,5 @@
+{-# LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE RecordWildCards #-}
 
@@ -155,8 +157,19 @@ newtype Abort = Abort
 abort :: (Abort :> es) => String -> Eff es a
 abort cause = handler $ \Abort {..} -> _abort cause
 
+newtype AbortException = AbortException {_cause :: String}
+  deriving stock (Show)
+  deriving anyclass (Exception)
+
 throwAbort :: Abort
-throwAbort = Abort {_abort = liftIO . throwIO . userError}
+throwAbort = Abort {_abort = liftIO . throwIO . AbortException}
+
+usingAbortEither :: Eff (Abort ::: es) a -> Eff es (Either String a)
+usingAbortEither inner = do
+  unliftIO $ \run -> do
+    handle
+      (\AbortException {..} -> return $ Left _cause)
+      (run (using throwAbort $ Right <$> inner))
 
 newtype Trace = Trace
   { _tracing :: forall es a. String -> Eff es a -> Eff es a
