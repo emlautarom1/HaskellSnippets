@@ -46,10 +46,8 @@ runEff_ (MkEff f) = f ()
 unliftIO :: ((forall a. Eff es a -> IO a) -> IO b) -> Eff es b
 unliftIO f = MkEff $ \env -> f (runEff env)
 
-handler :: (e :> es) => (e -> Eff es a) -> Eff es a
-handler f = do
-  impl <- extract <$> MkEff return
-  f impl
+request :: (e :> es) => Eff es e
+request = extract <$> MkEff return
 
 locally :: (e :> es) => (e -> e) -> Eff es a -> Eff es a
 locally f (MkEff run) = MkEff $ \env -> run (alter f env)
@@ -96,10 +94,10 @@ data State a = State
   }
 
 get :: (State a :> es) => Eff es a
-get = handler $ \State {..} -> _get
+get = request >>= \State {..} -> _get
 
 modify :: (State a :> es) => (a -> a) -> Eff es ()
-modify f = handler $ \State {..} -> _modify f
+modify f = request >>= \State {..} -> _modify f
 
 put :: (State a :> es) => a -> Eff es ()
 put a = modify (const a)
@@ -121,7 +119,7 @@ newtype Reader a = Reader
   }
 
 ask :: (Reader a :> es) => Eff es a
-ask = handler $ \Reader {..} -> _ask
+ask = request >>= \Reader {..} -> _ask
 
 reader :: a -> Reader a
 reader a = Reader {_ask = return a}
@@ -131,7 +129,7 @@ newtype Logger = Logger
   }
 
 logMsg :: (Logger :> es) => String -> Eff es ()
-logMsg msg = handler $ \Logger {..} -> _logMsg msg
+logMsg msg = request >>= \Logger {..} -> _logMsg msg
 
 noLogger :: Logger
 noLogger = Logger {_logMsg = \_ -> return ()}
@@ -144,7 +142,7 @@ newtype MsgProvider a = MsgProvider
   }
 
 getMsg :: (MsgProvider a :> es) => Eff es a
-getMsg = handler $ \MsgProvider {..} -> _getMsg
+getMsg = request >>= \MsgProvider {..} -> _getMsg
 
 stdinMsgProvider :: MsgProvider String
 stdinMsgProvider = MsgProvider {_getMsg = liftIO getLine}
@@ -159,7 +157,7 @@ newtype Abort = Abort
   }
 
 abort :: (Abort :> es) => String -> Eff es a
-abort cause = handler $ \Abort {..} -> _abort cause
+abort cause = request >>= \Abort {..} -> _abort cause
 
 newtype AbortException = AbortException {_cause :: String}
   deriving (Show)
@@ -180,7 +178,7 @@ newtype Trace = Trace
   }
 
 tracing :: (Trace :> es) => String -> Eff es a -> Eff es a
-tracing label eff = handler $ \Trace {..} -> _tracing label eff
+tracing label eff = request >>= \Trace {..} -> _tracing label eff
 
 noTracing :: Trace
 noTracing = Trace $ \_ eff -> eff
