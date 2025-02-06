@@ -1,5 +1,3 @@
-{-# LANGUAGE DeriveAnyClass #-}
-{-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE RecordWildCards #-}
 
@@ -161,8 +159,8 @@ abort :: (Abort :> es) => String -> Eff es a
 abort cause = handler $ \Abort {..} -> _abort cause
 
 newtype AbortException = AbortException {_cause :: String}
-  deriving stock (Show)
-  deriving anyclass (Exception)
+  deriving (Show)
+instance Exception AbortException
 
 throwAbort :: Abort
 throwAbort = Abort {_abort = liftIO . throwIO . AbortException}
