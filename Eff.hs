@@ -104,14 +104,17 @@ modify f = handler $ \State {..} -> _modify f
 put :: (State a :> es) => a -> Eff es ()
 put a = modify (const a)
 
-newLocalState :: a -> IO (State a)
-newLocalState a = do
-  ref <- newIORef a
-  return $
-    State
-      { _get = liftIO $ readIORef ref
-      , _modify = liftIO . modifyIORef' ref
-      }
+usingLocalState :: s -> Eff (State s ::: es) a -> Eff es (a, s)
+usingLocalState s inner = do
+  ref <- liftIO $ newIORef s
+  let state =
+        State
+          { _get = liftIO $ readIORef ref
+          , _modify = liftIO . modifyIORef' ref
+          }
+  r <- using state $ do inner
+  s' <- liftIO $ readIORef ref
+  return (r, s')
 
 newtype Reader a = Reader
   { _ask :: forall es. Eff es a
@@ -207,6 +210,7 @@ echoServer = do
         abort "something went wrong!"
         logMsg "unreachable"
       _ -> do
+        modify (+ (1 :: Int))
         logMsg msg
         continue
 
@@ -216,7 +220,16 @@ main = do
   let abort = throwAbort
   let trace = logTracing logger
   msgProvider <- newFixedMessageProvider ["hello", "world", "exit"]
-  state <- newLocalState (0 :: Int)
 
-  runEff (logger ::: abort ::: trace ::: msgProvider ::: reader "42") $ do
-    echoServer
+  putStrLn "main: begin"
+  (_, count) <-
+    runEff_
+      $ usingLocalState (0 :: Int)
+        . using logger
+        . using abort
+        . using trace
+        . using msgProvider
+        . using (reader "42")
+      $ echoServer
+
+  putStrLn $ "main: processed " ++ show count ++ " messages"
