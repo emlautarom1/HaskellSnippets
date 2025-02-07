@@ -131,6 +131,13 @@ noLogger = Logger {_logMsg = \_ -> return ()}
 stdoutLogger :: Logger
 stdoutLogger = Logger {_logMsg = liftIO . putStrLn}
 
+usingStateLogger :: State [String] -> Eff (Logger ::: es) a -> Eff es (a, [String])
+usingStateLogger state inner = do
+  let logger = Logger {_logMsg = \msg -> using state $ do modify (msg :)}
+  r <- using logger $ do inner
+  logs <- using state $ do get
+  return (r, reverse logs)
+
 newtype MsgProvider a = MsgProvider
   { _getMsg :: forall es. Eff es a
   }
@@ -186,13 +193,6 @@ logTracing logger =
     using logger $ do
       logMsg $ "<<< out: " ++ label
     return a
-
-usingStateLogger :: State [String] -> Eff (Logger ::: es) a -> Eff es (a, [String])
-usingStateLogger state inner = do
-  let logger = Logger {_logMsg = \msg -> using state $ do modify (msg :)}
-  r <- using logger $ do inner
-  logs <- using state $ do get
-  return (r, reverse logs)
 
 echoServer :: (Logger :> es, MsgProvider String :> es, Abort :> es, Trace :> es, Reader String :> es, State Int :> es) => Eff es ()
 echoServer = do
