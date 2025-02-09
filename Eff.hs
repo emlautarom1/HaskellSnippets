@@ -69,11 +69,11 @@ instance a :> a where
 
 instance {-# OVERLAPPING #-} a :> (a ::: x) where
   extract (a ::: _) = a
-  alter f (a ::: x) = (f a ::: x)
+  alter f (a ::: x) = f a ::: x
 
 instance {-# OVERLAPPABLE #-} (a :> r) => a :> (l ::: r) where
   extract (_ ::: r) = extract r
-  alter f (l ::: r) = (l ::: alter f r)
+  alter f (l ::: r) = l ::: alter f r
 
 ----------------------------------------
 -- User code
