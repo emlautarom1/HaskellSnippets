@@ -1,4 +1,3 @@
-{-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE RecordWildCards #-}
 
 module Eff (main) where
@@ -53,31 +52,28 @@ locally :: (e :> es) => (e -> e) -> Eff es a -> Eff es a
 locally f (MkEff run) = MkEff $ \env -> run (alter f env)
 
 ----------------------------------------
--- Minimal `Has` class `(:>)` with tuples as heterogeneous lists
+-- Minimal `Has` class `(:>)` with a custom tuple as heterogeneous lists
+
+data a ::: b = (:::) !a !b
+
+infixr 1 :::
 
 class a :> t where
   {-# MINIMAL extract, alter #-}
   extract :: t -> a
   alter :: (a -> a) -> t -> t
 
-type a ::: b = (a, b)
-
-pattern (:::) :: a -> b -> (a, b)
-pattern a ::: b = (a, b)
-
-infixr 1 :::
-
 instance a :> a where
   extract a = a
   alter f = f
 
 instance {-# OVERLAPPING #-} a :> (a ::: x) where
-  extract (a, _) = a
-  alter f (a, x) = (f a, x)
+  extract (a ::: _) = a
+  alter f (a ::: x) = (f a ::: x)
 
 instance {-# OVERLAPPABLE #-} (a :> r) => a :> (l ::: r) where
-  extract (_, r) = extract r
-  alter f (l, r) = (l, alter f r)
+  extract (_ ::: r) = extract r
+  alter f (l ::: r) = (l ::: alter f r)
 
 ----------------------------------------
 -- User code
