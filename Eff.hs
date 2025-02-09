@@ -52,7 +52,7 @@ locally :: (e :> es) => (e -> e) -> Eff es a -> Eff es a
 locally f (MkEff run) = MkEff $ \env -> run (alter f env)
 
 ----------------------------------------
--- Minimal `Has` class `(:>)` with tuples as heterogeneous lists
+-- Minimal `Has` class `(:>)` with a custom tuple as heterogeneous lists
 
 data a ::: b = (:::) !a !b
 
