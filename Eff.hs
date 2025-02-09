@@ -48,6 +48,9 @@ request = extract <$> MkEff return
 using :: e -> Eff (e ::: es) a -> Eff es a
 using impl (MkEff run) = MkEff $ \env -> run (impl ::: env)
 
+usingM :: Eff es e -> Eff (e ::: es) a -> Eff es a
+usingM implM f = implM >>= \impl -> using impl f
+
 locally :: (e :> es) => (e -> e) -> Eff es a -> Eff es a
 locally f (MkEff run) = MkEff $ \env -> run (alter f env)
 
