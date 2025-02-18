@@ -140,8 +140,8 @@ noLogger = Logger {_logMsg = \_ -> return ()}
 stdoutLogger :: Logger
 stdoutLogger = Logger {_logMsg = liftIO . putStrLn}
 
-usingStateLogger :: State [String] -> Eff (Logger ::: es) a -> Eff es (a, [String])
-usingStateLogger state inner = do
+stateLogger :: State [String] -> Eff (Logger ::: es) a -> Eff es (a, [String])
+stateLogger state inner = do
   let logger = Logger {_logMsg = \msg -> using state $ do modify (msg :)}
   r <- using logger $ do inner
   logs <- using state $ do get
