@@ -106,15 +106,16 @@ localState s = do
   ref <- newIORef s
   return $
     State
-      { _get = return s
+      { _get = liftIO $ readIORef ref
       , _modify = liftIO . modifyIORef' ref
       }
 
 state :: State s -> Eff (State s ::: es) a -> Eff es (a, s)
-state h inner = do
-  r <- using h $ do inner
-  s' <- using h $ do get
-  return (r, s')
+state h inner =
+  using h $ do
+    a <- inner
+    s <- get
+    return (a, s)
 
 newtype Reader a = Reader
   { _ask :: forall es. Eff es a
