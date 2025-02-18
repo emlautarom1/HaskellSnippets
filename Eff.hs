@@ -48,8 +48,14 @@ request = extract <$> MkEff return
 using :: e -> Eff (e ::: es) a -> Eff es a
 using impl (MkEff run) = MkEff $ \env -> run (impl ::: env)
 
+with :: (Monad m) => (a -> b -> m c) -> m a -> b -> m c
+with f ma b = ma >>= \a -> f a b
+
+usingH :: Eff es (e -> Eff es a) -> e -> Eff es a
+usingH = with id
+
 usingM :: Eff es e -> Eff (e ::: es) a -> Eff es a
-usingM implM f = implM >>= \impl -> using impl f
+usingM = with using
 
 locally :: (e :> es) => (e -> e) -> Eff es a -> Eff es a
 locally f (MkEff run) = MkEff $ \env -> run (alter f env)
@@ -95,16 +101,19 @@ modify f = request >>= \State {..} -> _modify f
 put :: (State a :> es) => a -> Eff es ()
 put a = modify (const a)
 
-usingLocalState :: s -> Eff (State s ::: es) a -> Eff es (a, s)
-usingLocalState s inner = do
-  ref <- liftIO $ newIORef s
-  let state =
-        State
-          { _get = liftIO $ readIORef ref
-          , _modify = liftIO . modifyIORef' ref
-          }
-  r <- using state $ do inner
-  s' <- liftIO $ readIORef ref
+localState :: s -> IO (State s)
+localState s = do
+  ref <- newIORef s
+  return $
+    State
+      { _get = return s
+      , _modify = liftIO . modifyIORef' ref
+      }
+
+state :: State s -> Eff (State s ::: es) a -> Eff es (a, s)
+state h inner = do
+  r <- using h $ do inner
+  s' <- using h $ do get
   return (r, s')
 
 newtype Reader a = Reader
@@ -217,16 +226,15 @@ main = do
   let logger = stdoutLogger
   let abort = throwAbort
   let trace = logTracing logger
-  msgProvider <- newFixedMessageProvider ["hello", "world", "exit"]
 
   putStrLn "main: begin"
   (_, count) <-
     runEff
-      $ usingLocalState (0 :: Int)
+      $ usingH (state <$> liftIO (localState (0 :: Int)))
+        . usingM (liftIO $ newFixedMessageProvider ["hello", "world", "exit"])
         . using logger
         . using abort
         . using trace
-        . using msgProvider
         . using (reader "42")
       $ echoServer
 
