@@ -37,7 +37,7 @@ instance MonadIO (Eff es) where
   liftIO io = MkEff $ const io
 
 runEff :: Eff () a -> IO a
-runEff (MkEff f) = f ()
+runEff (MkEff run) = run ()
 
 unliftIO :: ((forall a. Eff es a -> IO a) -> IO b) -> Eff es b
 unliftIO f = MkEff $ \env -> f (\(MkEff run) -> run env)
