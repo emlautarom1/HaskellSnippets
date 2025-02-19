@@ -52,7 +52,7 @@ using' :: (e -> Eff es a) -> e -> Eff es a
 using' h = h
 
 usingM :: Eff es (e -> Eff es a) -> e -> Eff es a
-usingM ma b = ma >>= \a -> a b
+usingM runM f = runM >>= \run -> run f
 
 locally :: (e :> es) => (e -> e) -> Eff es a -> Eff es a
 locally f (MkEff run) = MkEff $ \env -> run (alter f env)
