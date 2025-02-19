@@ -110,12 +110,23 @@ localState s = do
       , _modify = liftIO . modifyIORef' ref
       }
 
-state :: State s -> Eff (State s ::: es) a -> Eff es (a, s)
-state h inner =
-  using h $ do
+runState :: State s -> Eff (State s ::: es) a -> Eff es (a, s)
+runState impl inner =
+  using impl $ do
     a <- inner
     s <- get
     return (a, s)
+
+evalState :: State s -> Eff (State s ::: es) a -> Eff es a
+evalState impl inner =
+  using impl $ do
+    inner
+
+execState :: State s -> Eff (State s ::: es) a -> Eff es s
+execState impl inner =
+  using impl $ do
+    _ <- inner
+    get
 
 newtype Reader a = Reader
   { _ask :: forall es. Eff es a
@@ -233,7 +244,7 @@ main = do
   putStrLn "main: begin"
   (_, count) <-
     runEff
-      $ useM (state <$> liftIO (localState (0 :: Int)))
+      $ useM (runState <$> liftIO (localState (0 :: Int)))
         . usingM (liftIO $ newFixedMessageProvider ["hello", "world", "exit"])
         . use abort
         . using logger
