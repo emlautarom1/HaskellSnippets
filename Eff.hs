@@ -51,14 +51,8 @@ using impl (MkEff run) = MkEff $ \env -> run (impl ::: env)
 using' :: (e -> Eff es a) -> e -> Eff es a
 using' h = h
 
-with :: (Monad m) => (a -> b -> m c) -> m a -> b -> m c
-with f ma b = ma >>= \a -> f a b
-
-usingH :: Eff es (e -> Eff es a) -> e -> Eff es a
-usingH = with id
-
-usingM :: Eff es e -> Eff (e ::: es) a -> Eff es a
-usingM = with using
+usingM :: Eff es (e -> Eff es a) -> e -> Eff es a
+usingM ma b = ma >>= \a -> a b
 
 locally :: (e :> es) => (e -> e) -> Eff es a -> Eff es a
 locally f (MkEff run) = MkEff $ \env -> run (alter f env)
@@ -236,8 +230,8 @@ main = do
   putStrLn "main: begin"
   (_, count) <-
     runEff
-      $ usingH (state <$> liftIO (localState (0 :: Int)))
-        . usingM (liftIO $ newFixedMessageProvider ["hello", "world", "exit"])
+      $ usingM (state <$> liftIO (localState (0 :: Int)))
+        . usingM (using <$> liftIO (newFixedMessageProvider ["hello", "world", "exit"]))
         . using' abort
         . using logger
         . using trace
