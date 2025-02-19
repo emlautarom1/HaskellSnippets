@@ -19,14 +19,14 @@ type Methods m = Map MethodName (Method m)
 type Rpc = (MethodName, String)
 
 data Method m = Method
-  { f :: MethodName -> Maybe (m String)
+  { run :: String -> Maybe (m String)
   , expectedTy :: TypeRep
   }
 
 mkMethod :: forall m i o. (Monad m, Typeable i, Read i, Show o) => (i -> m o) -> Method m
 mkMethod f =
   Method
-    { f = \s -> case readMaybe s of
+    { run = \str -> case readMaybe str of
         Just args -> do
           Just $ show <$> f args
         Nothing -> Nothing
@@ -42,11 +42,11 @@ instance Show RpcError where
   show (MethodNotFound name) = "Method `" <> name <> "` not found"
 
 runRpc :: (Monad m) => Methods m -> Rpc -> m (Either RpcError String)
-runRpc methods (method, args) = do
-  case M.lookup method methods of
-    Nothing -> return $ Left $ MethodNotFound {name = method}
-    Just (Method f expectedTy) -> do
-      case f args of
+runRpc methods (name, args) = do
+  case M.lookup name methods of
+    Nothing -> return $ Left $ MethodNotFound {name = name}
+    Just (Method run expectedTy) -> do
+      case run args of
         Nothing -> return $ Left $ MismatchedArgs {ty = expectedTy, args = args}
         Just mv -> Right <$> mv
 
