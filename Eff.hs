@@ -138,10 +138,10 @@ stdoutLogger :: Logger
 stdoutLogger = Logger {_logMsg = liftIO . putStrLn}
 
 stateLogger :: State [String] -> Eff (Logger ::: es) a -> Eff es (a, [String])
-stateLogger state inner = do
-  let logger = Logger {_logMsg = \msg -> using state $ do modify (msg :)}
+stateLogger impl inner = do
+  let logger = Logger {_logMsg = \msg -> using impl $ do modify (msg :)}
   r <- using logger $ do inner
-  logs <- using state $ do get
+  logs <- using impl $ do get
   return (r, reverse logs)
 
 newtype MsgProvider a = MsgProvider
@@ -155,8 +155,8 @@ stdinMsgProvider :: MsgProvider String
 stdinMsgProvider = MsgProvider {_getMsg = liftIO getLine}
 
 newFixedMessageProvider :: [a] -> IO (MsgProvider a)
-newFixedMessageProvider msgs = do
-  ref <- newIORef msgs
+newFixedMessageProvider initial = do
+  ref <- newIORef initial
   return $ MsgProvider {_getMsg = liftIO $ atomicModifyIORef' ref $ \msgs -> (tail msgs, head msgs)}
 
 data Abort = AbortE
@@ -179,7 +179,7 @@ abortThrowIO :: Eff (Abort ::: es) a -> Eff es a
 abortThrowIO inner = do
   unliftIO $ \run -> do
     handle
-      (\e@(AbortException {..}) -> throwIO e)
+      (\e@(AbortException {}) -> throwIO e)
       (run (using AbortE inner))
 
 newtype Trace = Trace
@@ -205,7 +205,7 @@ logTracing logger =
 echoServer :: (Logger :> es, MsgProvider String :> es, Abort :> es, Trace :> es, Reader String :> es, State Int :> es) => Eff es ()
 echoServer = do
   logMsg "echo server; type 'exit' to quit"
-  using noLogger $ do
+  locally (const noLogger) $ do
     secret <- ask
     logMsg $ "secret is " ++ secret
   fix $ \continue -> do
