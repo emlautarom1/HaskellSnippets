@@ -45,17 +45,20 @@ unliftIO f = MkEff $ \env -> f (\(MkEff run) -> run env)
 request :: (e :> es) => Eff es e
 request = extract <$> MkEff return
 
+locally :: (e :> es) => (e -> e) -> Eff es a -> Eff es a
+locally f (MkEff run) = MkEff $ \env -> run (alter f env)
+
 using :: e -> Eff (e ::: es) a -> Eff es a
 using impl (MkEff run) = MkEff $ \env -> run (impl ::: env)
 
-using' :: (e -> Eff es a) -> e -> Eff es a
-using' h = h
+usingM :: Eff es e -> Eff (e ::: es) a -> Eff es a
+usingM implM inner = implM >>= \impl -> using impl inner
 
-usingM :: Eff es (e -> Eff es a) -> e -> Eff es a
-usingM runM f = runM >>= \run -> run f
+use :: (e -> Eff es a) -> e -> Eff es a
+use f = f
 
-locally :: (e :> es) => (e -> e) -> Eff es a -> Eff es a
-locally f (MkEff run) = MkEff $ \env -> run (alter f env)
+useM :: Eff es (e -> Eff es a) -> e -> Eff es a
+useM fM inner = fM >>= \f -> f inner
 
 ----------------------------------------
 -- Minimal `Has` class `(:>)` with a custom tuple as heterogeneous lists
@@ -230,9 +233,9 @@ main = do
   putStrLn "main: begin"
   (_, count) <-
     runEff
-      $ usingM (state <$> liftIO (localState (0 :: Int)))
-        . usingM (using <$> liftIO (newFixedMessageProvider ["hello", "world", "exit"]))
-        . using' abort
+      $ useM (state <$> liftIO (localState (0 :: Int)))
+        . usingM (liftIO $ newFixedMessageProvider ["hello", "world", "exit"])
+        . use abort
         . using logger
         . using trace
         . using (reader "42")
