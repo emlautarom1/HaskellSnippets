@@ -48,6 +48,9 @@ request = extract <$> MkEff return
 using :: e -> Eff (e ::: es) a -> Eff es a
 using impl (MkEff run) = MkEff $ \env -> run (impl ::: env)
 
+using' :: (e -> Eff es a) -> e -> Eff es a
+using' h = h
+
 with :: (Monad m) => (a -> b -> m c) -> m a -> b -> m c
 with f ma b = ma >>= \a -> f a b
 
@@ -162,26 +165,28 @@ newFixedMessageProvider msgs = do
   ref <- newIORef msgs
   return $ MsgProvider {_getMsg = liftIO $ atomicModifyIORef' ref $ \msgs -> (tail msgs, head msgs)}
 
-newtype Abort = Abort
-  { _abort :: forall es a. String -> Eff es a
-  }
-
-abort :: (Abort :> es) => String -> Eff es a
-abort cause = request >>= \Abort {..} -> _abort cause
+data Abort = AbortE
 
 newtype AbortException = AbortException {_cause :: String}
   deriving (Show)
 instance Exception AbortException
 
-throwAbort :: Abort
-throwAbort = Abort {_abort = liftIO . throwIO . AbortException}
+abort :: (Abort :> es) => String -> Eff es a
+abort = liftIO . throwIO . AbortException
 
-usingAbortEither :: Eff (Abort ::: es) a -> Eff es (Either String a)
-usingAbortEither inner = do
+abortEither :: Eff (Abort ::: es) a -> Eff es (Either String a)
+abortEither inner = do
   unliftIO $ \run -> do
     handle
       (\AbortException {..} -> return $ Left _cause)
-      (run (using throwAbort $ Right <$> inner))
+      (run (using AbortE $ Right <$> inner))
+
+abortThrowIO :: Eff (Abort ::: es) a -> Eff es a
+abortThrowIO inner = do
+  unliftIO $ \run -> do
+    handle
+      (\e@(AbortException {..}) -> throwIO e)
+      (run (using AbortE inner))
 
 newtype Trace = Trace
   { _tracing :: forall es a. String -> Eff es a -> Eff es a
@@ -225,7 +230,7 @@ echoServer = do
 main :: IO ()
 main = do
   let logger = stdoutLogger
-  let abort = throwAbort
+  let abort = abortEither
   let trace = logTracing logger
 
   putStrLn "main: begin"
@@ -233,8 +238,8 @@ main = do
     runEff
       $ usingH (state <$> liftIO (localState (0 :: Int)))
         . usingM (liftIO $ newFixedMessageProvider ["hello", "world", "exit"])
+        . using' abort
         . using logger
-        . using abort
         . using trace
         . using (reader "42")
       $ echoServer
