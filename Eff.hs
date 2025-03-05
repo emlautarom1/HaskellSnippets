@@ -7,6 +7,8 @@ import Control.Monad
 import Control.Monad.Fix
 import Control.Monad.IO.Class
 import Data.IORef
+import System.Directory.Internal.Prelude (timeout)
+import Control.Concurrent
 
 ----------------------------------------
 -- `Eff` monad, essentially `ReaderT env IO`
@@ -242,6 +244,9 @@ newtype Resource = Resource
 
 alloc :: (Resource :> es) => Eff es a -> (a -> Eff es ()) -> Eff es ()
 alloc acquire release = request >>= \Resource{..} -> _alloc acquire release
+
+defer :: (Resource :> es) => Eff es () -> Eff es ()
+defer action = alloc (return ()) (const action)
 
 resource :: Eff (Resource ::: es) a -> Eff es a
 resource inner = unliftIO $ \run -> do
