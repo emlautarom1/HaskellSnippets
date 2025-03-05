@@ -3,6 +3,7 @@
 module Eff (main) where
 
 import Control.Exception
+import Control.Monad
 import Control.Monad.Fix
 import Control.Monad.IO.Class
 import Data.IORef
@@ -234,6 +235,25 @@ echoServer = do
         modify (+ (1 :: Int))
         logMsg msg
         continue
+
+newtype Resource = Resource
+  { _alloc :: forall es a. Eff es a -> (a -> Eff es ()) -> Eff es ()
+  }
+
+alloc :: (Resource :> es) => Eff es a -> (a -> Eff es ()) -> Eff es ()
+alloc acquire release = request >>= \Resource{..} -> _alloc acquire release
+
+resource :: Eff (Resource ::: es) a -> Eff es a
+resource inner = unliftIO $ \run -> do
+  ref <- liftIO $ newIORef (return ())
+  let impl =
+        Resource
+          { _alloc = \acquire release -> unliftIO $ \run -> uninterruptibleMask $ \restore -> do
+              a <- restore $ run acquire
+              atomicModifyIORef' ref (\finalizer -> (run (release a) `finally` finalizer, ()))
+          }
+  let release = join $ liftIO $ readIORef ref
+  run (using impl inner) `finally` release
 
 main :: IO ()
 main = do
