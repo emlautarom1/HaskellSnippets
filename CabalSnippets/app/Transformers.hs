@@ -7,13 +7,11 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE TypeApplications #-}
 
-module Main (main) where
+module Transformers where
 
-import Control.Exception (Exception, throw)
 import Control.Monad.Except
 import Control.Monad.State
 import Control.Monad.Writer
-import Data.Functor.Identity
 import Data.Map
 import qualified Data.Map as Map
 import Data.Maybe
@@ -24,9 +22,9 @@ alwaysFails = pure . Left
 alwaysSucceeds :: Int -> IO (Either String Int)
 alwaysSucceeds = pure . Right
 
-handleError :: Show e => Either e a -> IO ()
-handleError (Left err) = print err
-handleError (Right _) = pure ()
+handleError' :: (Show e) => Either e a -> IO ()
+handleError' (Left err) = print err
+handleError' (Right _) = pure ()
 
 exampleExceptT :: ExceptT String IO Int
 exampleExceptT = do
@@ -46,17 +44,17 @@ liftEitherIO a = liftIO a >>= liftEither
 main :: IO ()
 main = do
   res <- runExceptT exampleExceptT
-  res <- runExceptT exampleMonadError
-  handleError res
+  -- res <- runExceptT exampleMonadError
+  handleError' res
   pure ()
 
 ----------------------------------------
 -- Effects
 
-class Monad m => Logger m where
+class (Monad m) => Logger m where
   logMsg :: String -> m ()
 
-class Monad m => MonadKVStore k v m where
+class (Monad m) => MonadKVStore k v m where
   putValue :: k -> v -> m ()
   getValue :: k -> m (Maybe v)
   listValues :: m [v]

@@ -2,7 +2,7 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE RecordWildCards #-}
 
-module Main where
+module DependencyInjection where
 
 import Control.Monad.Reader
 import Data.Bifunctor
@@ -85,9 +85,9 @@ subprogram msg = do
   consumeMessage msg
 
 data Env = Env
-  { logger :: Logger,
-    messageProvider :: MessageProvider,
-    messageConsumer :: MessageConsumer
+  { logger :: Logger
+  , messageProvider :: MessageProvider
+  , messageConsumer :: MessageConsumer
   }
 
 -- It would be nice if we could derive these instances.
@@ -104,7 +104,7 @@ instance Has MessageConsumer Env where
   getter = messageConsumer
   modifier f e = e {messageConsumer = f (messageConsumer e)}
 
-runInTestMode :: ReaderT Env IO a -> IO ()
+runInTestMode :: ReaderT Env IO () -> IO ()
 runInTestMode app = do
   putStrLn "> Running in test mode"
 
@@ -120,7 +120,7 @@ runInTestMode app = do
   mapM_ putStrLn ls
 
 -- You can also avoid the 'Env' type by just using a tuple
-runInTestNoEnv :: ReaderT (Logger, MessageProvider, MessageConsumer) IO a -> IO ()
+runInTestNoEnv :: ReaderT (Logger, MessageProvider, MessageConsumer) IO () -> IO ()
 runInTestNoEnv app = do
   putStrLn "> Running in test mode (no 'Env')"
 
@@ -135,7 +135,7 @@ runInTestNoEnv app = do
   ls <- reverse <$> readIORef logs
   mapM_ putStrLn ls
 
-runInProdMode :: ReaderT Env IO a -> IO ()
+runInProdMode :: ReaderT Env IO () -> IO ()
 runInProdMode app = do
   putStrLn "> Running in prod mode"
 

@@ -1,6 +1,5 @@
 module SystemInfo where
 
-import Control.Monad.Trans (MonadIO (liftIO))
 import Language.Haskell.TH (Exp, Q, runIO)
 import Language.Haskell.TH.Syntax (Lift (lift))
 import System.Process (readProcess)

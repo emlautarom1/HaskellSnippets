@@ -3,12 +3,12 @@
 {-# LANGUAGE TypeApplications #-}
 {-# OPTIONS_GHC -Wall #-}
 
-module Main where
+module LensesMain where
 
 -- import Optics
 import Control.Lens
 import Data.Foldable (for_)
-import Lib
+import LensesLib
 
 someDog :: Dog
 someDog = MkDog {dogName = "", age = 5}

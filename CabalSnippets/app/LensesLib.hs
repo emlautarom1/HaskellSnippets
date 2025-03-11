@@ -6,10 +6,10 @@
 {-# LANGUAGE OverloadedLabels #-}
 {-# OPTIONS_GHC -Wall #-}
 
-module Lib
-  ( Pet (..),
-    Dog (..),
-    Cat (..),
+module LensesLib
+  ( Pet (..)
+  , Dog (..)
+  , Cat (..)
   )
 where
 

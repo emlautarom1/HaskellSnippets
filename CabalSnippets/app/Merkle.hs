@@ -2,21 +2,19 @@
 
 module Merkle (computeMerkle) where
 
-import Data.ByteString (ByteString)
 import Data.Hashable (Hashable, hash)
-import Data.List (find)
 
 data Merkle a
   = Leaf !a
   | INode !Int !(Merkle a) !(Merkle a)
   deriving (Show, Eq)
 
-merkleHash :: Hashable a => Merkle a -> Int
+merkleHash :: (Hashable a) => Merkle a -> Int
 merkleHash = \case
   (Leaf a) -> hash a
   (INode h _ _) -> h
 
-ppMerkle :: Show a => Merkle a -> IO ()
+ppMerkle :: (Show a) => Merkle a -> IO ()
 ppMerkle = go 0
   where
     go depth = \case
@@ -29,7 +27,7 @@ ppMerkle = go 0
       where
         spaces = replicate depth ' '
 
-computeMerkle :: Hashable a => [a] -> Merkle a
+computeMerkle :: (Hashable a) => [a] -> Merkle a
 computeMerkle contents =
   let leaves = map Leaf contents
       [merkle] = iterateUntil isSingleton reduce leaves

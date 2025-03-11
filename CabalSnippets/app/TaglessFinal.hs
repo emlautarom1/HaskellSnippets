@@ -5,7 +5,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 
-module Main where
+module TaglessFinal where
 
 import Control.Monad.IO.Class
 import Control.Monad.Reader
@@ -27,7 +27,7 @@ newtype TestM k v a = TestM {unTestM :: StateT [(k, v)] IO a}
   deriving newtype (Functor, Applicative, Monad, MonadIO, MonadState [(k, v)])
 
 runTestM :: [(k, v)] -> TestM k v a -> IO (a, [(k, v)])
-runTestM init app = runStateT (unTestM app) init
+runTestM kv app = runStateT (unTestM app) kv
 
 instance KVStore k v AppM where
   getAll = do

@@ -5,7 +5,7 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
 
-module Main where
+module EffectfulMain where
 
 import Data.List.Extra
 import Effectful

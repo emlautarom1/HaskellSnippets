@@ -1,4 +1,4 @@
-# Revision history for Lenses
+# Revision history for CabalSnippets
 
 ## 0.1.0.0 -- YYYY-mm-dd
 
