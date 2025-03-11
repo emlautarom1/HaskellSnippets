@@ -10,6 +10,6 @@ systemInfo = do
     readProcess "uname" ["-a"] ""
   time <- runIO $ do
     readProcess "date" ["-u"] ""
-  let msg = "> uname: " <> uname <> "\n> date: " <> time
+  let msg = "> uname: " <> uname <> "> date: " <> time
 
   lift msg
