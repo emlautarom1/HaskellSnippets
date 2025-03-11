@@ -36,16 +36,16 @@ where
 type Predicate a = a -> Bool
 
 data Operation a
-  = -- Insert all elements that satisfy a predicate
+  = -- | Insert all elements that satisfy a predicate
     Insert (Predicate a)
-  | -- Delete all elements that satisfy a predicate
+  | -- | Delete all elements that satisfy a predicate
     Delete (Predicate a)
 
 -- | A set of values @a@.
 data Set a
-  = -- A set is either Empty
+  = -- | A set is either Empty
     Empty
-  | -- Or another set with an operation applied over
+  | -- | Or another set with an operation applied over
     Apply (Operation a) (Set a)
 
 instance Semigroup (Set a) where
