@@ -2,13 +2,13 @@
 
 module Eff (main) where
 
+import Control.Concurrent
 import Control.Exception
 import Control.Monad
 import Control.Monad.Fix
 import Control.Monad.IO.Class
 import Data.IORef
 import System.Directory.Internal.Prelude (timeout)
-import Control.Concurrent
 
 ----------------------------------------
 -- `Eff` monad, essentially `ReaderT env IO`
@@ -199,6 +199,28 @@ abortThrowIO inner = do
       (\e@(AbortException {}) -> throwIO e)
       (run (using AbortE inner))
 
+newtype Resource = Resource
+  { _alloc :: forall es a. Eff es a -> (a -> Eff es ()) -> Eff es ()
+  }
+
+alloc :: (Resource :> es) => Eff es a -> (a -> Eff es ()) -> Eff es ()
+alloc acquire release = request >>= \Resource {..} -> _alloc acquire release
+
+defer :: (Resource :> es) => Eff es () -> Eff es ()
+defer action = alloc (return ()) (const action)
+
+resource :: Eff (Resource ::: es) a -> Eff es a
+resource inner = unliftIO $ \run -> do
+  ref <- liftIO $ newIORef (return ())
+  let impl =
+        Resource
+          { _alloc = \acquire release -> unliftIO $ \run -> mask_ $ do
+              a <- run acquire
+              atomicModifyIORef' ref (\finalizer -> (run (release a) `finally` finalizer, ()))
+          }
+  let release = join $ liftIO $ readIORef ref
+  run (using impl inner) `finally` release
+
 newtype Trace = Trace
   { _tracing :: forall es a. String -> Eff es a -> Eff es a
   }
@@ -219,12 +241,15 @@ logTracing logger =
       logMsg $ "<<< out: " ++ label
     return a
 
-echoServer :: (Logger :> es, MsgProvider String :> es, Abort :> es, Trace :> es, Reader String :> es, State Int :> es) => Eff es ()
+echoServer :: (Logger :> es, MsgProvider String :> es, Abort :> es, Trace :> es, Reader String :> es, State Int :> es, Resource :> es) => Eff es ()
 echoServer = do
   logMsg "echo server; type 'exit' to quit"
+  defer $ logMsg "echo server; goodbye"
+
   locally (const noLogger) $ do
     secret <- ask
     logMsg $ "secret is " ++ secret
+
   fix $ \continue -> do
     getMsg >>= \msg -> case msg of
       "exit" -> do
@@ -238,28 +263,6 @@ echoServer = do
         logMsg msg
         continue
 
-newtype Resource = Resource
-  { _alloc :: forall es a. Eff es a -> (a -> Eff es ()) -> Eff es ()
-  }
-
-alloc :: (Resource :> es) => Eff es a -> (a -> Eff es ()) -> Eff es ()
-alloc acquire release = request >>= \Resource{..} -> _alloc acquire release
-
-defer :: (Resource :> es) => Eff es () -> Eff es ()
-defer action = alloc (return ()) (const action)
-
-resource :: Eff (Resource ::: es) a -> Eff es a
-resource inner = unliftIO $ \run -> do
-  ref <- liftIO $ newIORef (return ())
-  let impl =
-        Resource
-          { _alloc = \acquire release -> unliftIO $ \run -> uninterruptibleMask $ \restore -> do
-              a <- restore $ run acquire
-              atomicModifyIORef' ref (\finalizer -> (run (release a) `finally` finalizer, ()))
-          }
-  let release = join $ liftIO $ readIORef ref
-  run (using impl inner) `finally` release
-
 main :: IO ()
 main = do
   let logger = stdoutLogger
@@ -271,6 +274,7 @@ main = do
     runEff
       $ useM (runState <$> liftIO (localState (0 :: Int)))
         . usingM (liftIO $ newFixedMessageProvider ["hello", "world", "exit"])
+        . use resource
         . use abort
         . using logger
         . using trace
