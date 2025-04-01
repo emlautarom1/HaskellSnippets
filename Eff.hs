@@ -8,7 +8,6 @@ import Control.Monad
 import Control.Monad.Fix
 import Control.Monad.IO.Class
 import Data.IORef
-import System.Directory.Internal.Prelude (timeout)
 
 ----------------------------------------
 -- `Eff` monad, essentially `ReaderT env IO`
