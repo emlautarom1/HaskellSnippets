@@ -1,6 +1,6 @@
 {-# LANGUAGE CApiFFI #-}
 
-module FFI () where
+module FFI where
 
 import Foreign
 import Foreign.C.Types
@@ -14,19 +14,20 @@ data MyStruct = MyStruct
 
 instance Storable MyStruct where
   sizeOf _ = 2 * sizeOf (undefined :: CInt)
-  alignment _ = sizeOf (undefined :: CInt)
-  peek ptr = do
-    aVal <- peekByteOff ptr 0
-    bVal <- peekByteOff ptr (sizeOf (undefined :: CInt))
-    return $ MyStruct aVal bVal
-  poke ptr (MyStruct aVal bVal) = do
-    pokeByteOff ptr 0 aVal
-    pokeByteOff ptr (sizeOf (undefined :: CInt)) bVal
 
-foreign import capi "header.h do_something" c_doSomething :: Ptr MyStruct -> Int
+  alignment _ = sizeOf (undefined :: CInt)
+
+  peek ptr = do
+    a <- peekByteOff ptr 0
+    b <- peekByteOff ptr (sizeOf (undefined :: CInt))
+    return $ MyStruct a b
+
+  poke ptr (MyStruct a b) = do
+    pokeByteOff ptr 0 a
+    pokeByteOff ptr (sizeOf (undefined :: CInt)) b
+
+foreign import capi "header.h do_something" c_doSomething :: Ptr MyStruct -> IO Int
 
 doSomething :: MyStruct -> Int
 doSomething ms = unsafeDupablePerformIO $ do
-  alloca $ \ptr -> do
-    poke ptr ms
-    return $ c_doSomething ptr
+  with ms c_doSomething
