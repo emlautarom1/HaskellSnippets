@@ -1,9 +1,8 @@
-module With () where
+module With where
 
 import Unsafe.Coerce (unsafeCoerce)
 
 -- Equivalent to `Given` from `Data.Reflection`
-
 class With a where
   summon :: a
 
