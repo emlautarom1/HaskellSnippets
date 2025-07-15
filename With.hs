@@ -1,4 +1,4 @@
-module I where
+module With () where
 
 import Unsafe.Coerce (unsafeCoerce)
 
@@ -7,10 +7,10 @@ import Unsafe.Coerce (unsafeCoerce)
 class With a where
   summon :: a
 
-newtype Handler a o = Handler ((With a) => o)
+newtype Using a o = Using ((With a) => o)
 
 using :: forall a o. a -> ((With a) => o) -> o
-using handler f = unsafeCoerce (Handler f :: Handler a o) handler
+using a f = unsafeCoerce (Using f :: Using a o) a
 
 newtype Logger = MkLogger
   { _logMessage :: String -> IO ()
