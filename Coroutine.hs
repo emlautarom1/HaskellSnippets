@@ -1,16 +1,16 @@
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE LambdaCase #-}
 
-module Coroutine
-  ( Coroutine,
-    CoroutineCanceled,
-    newCoroutine,
-    resume,
-    cancel,
-    Stream,
-    newStream,
-    pull,
-  )
+module Coroutine (
+  Coroutine,
+  CoroutineCanceled,
+  newCoroutine,
+  resume,
+  cancel,
+  Stream,
+  newStream,
+  pull,
+)
 where
 
 import Control.Concurrent
@@ -19,8 +19,8 @@ import Control.Monad
 import Data.IORef
 
 data Coroutine i o = Coroutine
-  { resume :: i -> IO (Maybe o),
-    cancel :: IO ()
+  { resume :: i -> IO (Maybe o)
+  , cancel :: IO ()
   }
 
 data CoroutineCanceled = CoroutineCanceled
@@ -58,7 +58,7 @@ newCoroutine f = do
   tid <- forkFinally task complete
   let cancel = throwTo tid CoroutineCanceled
 
-  return (Coroutine {resume, cancel})
+  return (Coroutine{resume, cancel})
 
 type Stream o = Coroutine () o
 
