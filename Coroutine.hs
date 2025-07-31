@@ -69,6 +69,44 @@ newStream :: ((o -> IO ()) -> IO ()) -> IO (Stream o)
 newStream f = newCoroutine $ \_ yield -> f yield
 
 ----------------------------------------
+-- Operators
+
+await :: Stream o -> (o -> IO ()) -> IO ()
+await c f = do
+  mv <- pull c
+  case mv of
+    Nothing -> cancel c
+    Just v -> f v >> await c f
+
+mapS :: (a -> b) -> Stream a -> IO (Stream b)
+mapS f c = newStream $ \yield ->
+  await c $ \v ->
+    yield (f v)
+
+filterS :: (a -> Bool) -> Stream a -> IO (Stream a)
+filterS p c = newStream $ \yield -> do
+  await c $ \v -> do
+    when (p v) $ do
+      yield v
+
+forEach :: (o -> IO ()) -> Stream o -> IO ()
+forEach f c = await c f
+
+fromListS :: [o] -> IO (Stream o)
+fromListS = newStream . forM_
+
+toListS :: Stream a -> IO [a]
+toListS s = go []
+ where
+  go !acc = do
+    mv <- pull s
+    case mv of
+      Nothing -> do
+        cancel s
+        return (reverse acc)
+      Just v -> go (v : acc)
+
+----------------------------------------
 -- Example usages
 
 coroutine :: IO ()
@@ -94,11 +132,16 @@ stream = do
   pull s >>= print
   pull s >>= print
 
+numbers :: IO [Int]
+numbers = do
+  fromListS [1 .. 10]
+    >>= mapS (* 2)
+    >>= filterS (> 10)
+    >>= toListS
+
 main :: IO ()
 main = do
   coroutine
   stream
 
 -- See: https://research.swtch.com/coro
-
--- TODO: Stream composition and operators (filter, map, etc.)
