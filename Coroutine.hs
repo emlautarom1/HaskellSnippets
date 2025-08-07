@@ -68,6 +68,15 @@ pull (Coroutine resume _) = resume ()
 newStream :: ((o -> IO ()) -> IO ()) -> IO (Stream o)
 newStream f = newCoroutine $ \_ yield -> f yield
 
+withAbort :: (IO () -> IO a) -> IO (Maybe a)
+withAbort f = do
+  let new = newCoroutine $ \_ yield -> do
+        a <- Just <$> f (yield Nothing)
+        yield a
+
+  bracket new cancel $ \c -> do
+    join <$> resume c ()
+
 ----------------------------------------
 -- Operators
 
@@ -132,6 +141,15 @@ stream = do
   pull s >>= print
   pull s >>= print
 
+abort :: IO ()
+abort = do
+  exit <- withAbort $ \abort -> do
+    let x = 42
+    abort
+    return x
+
+  print exit
+
 numbers :: IO [Int]
 numbers = do
   fromListS [1 .. 10]
@@ -143,5 +161,4 @@ main :: IO ()
 main = do
   coroutine
   stream
-
--- See: https://research.swtch.com/coro
+  abort
